@@ -34,11 +34,11 @@ local function loadclass(classdata)
 	end
 
 	if (u4() ~= 0xcafebabe) then
-		return nil, "not a class file"
+		return Utils.Throw("not a class file")
 	end
 
-	classobj.minorversion = u2()
-	classobj.majorversion = u2()
+	classobj.minor_version = u2()
+	classobj.major_version = u2()
 
 	-- Load constant pool
 
@@ -98,12 +98,12 @@ local function loadclass(classdata)
 		local tag = b()
 		local reader = constant_reader[tag]
 		if not reader then
-			return nil, "invalid constant pool tag "..tag
+			Utils.Throw("invalid constant pool tag "..tag)
 		end
 
 		local c = reader()
 		if not c then
-			return nil, "unimplemented constant pool tag "..tag
+			Utils.Throw("unimplemented constant pool tag "..tag)
 		end
 
 		classobj.constants[i] = c
@@ -125,15 +125,122 @@ local function loadclass(classdata)
 
 	-- Function to load an attribute --- we'l use this later.
 
+	local attributes
+
+	local attribute_reader = {
+		["ConstantValue"] = function()
+		end,
+
+		["Code"] = function()
+			local a = {}
+			a.max_stack = u2()
+			a.max_locals = u2()
+
+			local code_length = u4()
+			a.code = utf8(code_length)
+
+			local exception_table_length = u2()
+			a.exception_table = {}
+			for i = 1, exception_table_length do
+				a.exception_table[i] = {
+					start_pc = u2(),
+					end_pc = u2(),
+					handler_pc = u2(),
+					catch_type = u2()
+				}
+			end
+
+			a.attributes = attributes()
+			return a
+		end,
+
+		["Exceptions"] = function()
+			local number_of_exceptions = u2()
+			local a = {}
+			for i = 1, number_of_exceptions do
+				a[i] = u2()
+			end
+			return a
+		end,
+
+		["InnerClasses"] = function()
+			local number_of_classes = u2()
+			local a = {}
+			for i = 1, number_of_classes do
+				a[i] = {
+					inner_class_info_index = u2(),
+					outer_class_info_index = u2(),
+					inner_name_index = u2(),
+					inner_class_access_flags = u2()
+				}
+			end
+			return a
+		end,
+
+		["Synthetic"] = function()
+			return {};
+		end,
+
+		["SourceFile"] = function()
+			return {
+				sourcefile_index = u2()
+			}
+		end,
+
+		["LineNumberTable"] = function()
+			local line_number_table_length = u2()
+			local a = {}
+			for i = 1, line_number_table_length do
+				a[i] = {
+					start_pc = u2(),
+					line_number = u2()
+				}
+			end
+			return a
+		end,
+
+		["LocalVariableTable"] = function()
+			local local_variable_table_length = u2()
+			local a = {}
+			for i = 1, local_variable_table_length do
+				a[i] = {
+					start_pc = u2(),
+					length = u2(),
+					name_index = u2(),
+					descriptor_index = u2(),
+					index = u2()
+				}
+			end
+			return a
+		end,
+
+		["Deprecated"] = function()
+			return {};
+		end,
+	}
+
 	local function attribute()
-		local a = {}
-		a.attribute_name_index = u2()
+		local attribute_name_index = u2()
+		local attribute_name = classobj.constants[attribute_name_index]
+		local reader = attribute_reader[attribute_name]
+
+		if not reader then
+			Utils.Throw("unknown attribute with name index "..attribute_name_index)
+		end
+
 		local len = u4()
-		a.info = utf8(len)
+		local oldpos = pos
+		local a = reader()
+		if not a then
+			Utils.Throw("unimplemented attribute "..attribute_name)
+		end
+		a.attribute_name = attribute_name
+
+		pos = oldpos + len
 		return a
 	end
 
-	local function attributes()
+	attributes = function()
 		local attributes_count = u2()
 		local a = {}
 		for i = 1, attributes_count do

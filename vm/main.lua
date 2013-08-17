@@ -10,11 +10,11 @@ ServerDir = arg[0]:gsub("[^/]+$", "")
 package.path = ServerDir .. "?.lua;" .. ServerDir .. "?/init.lua;" .. package.path
 
 local Utils = require("Utils")
-local classreader = require("classreader")
+local classanalyser = require("classanalyser")
 local serpent = require("serpent")
 
 local s = Utils.LoadFile("../bin/com/cowlark/luje/Main.class")
-local t, e = classreader(s)
+local t, e = classanalyser(s)
 if e then
 	Utils.FatalError(e)
 end

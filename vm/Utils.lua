@@ -180,6 +180,17 @@ local function Stringify(...)
 	return table.concat(args, "", 1, argslen)
 end
 
+--- Throws an exception (with parameter massaging).
+--
+--    e: exception value
+
+local function Throw(e)
+	if not e then
+		e = "attempt to throw nil"
+	end
+	error(e)
+end
+
 return
 {
 	OpenFile = OpenFile,
@@ -192,5 +203,5 @@ return
 	ParseCommandLine = ParseCommandLine,
 	Unindent = Unindent,
 	Stringify = Stringify,
-	Time = Time
+	Throw = Throw,
 }
