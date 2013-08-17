@@ -1,10 +1,22 @@
---
--- Created by IntelliJ IDEA.
--- User: dg
--- Date: 17/08/13
--- Time: 20:16
--- To change this template use File | Settings | File Templates.
---
+-- Luje
+-- © 2013 David Given
+-- This file is redistributable under the terms of the
+-- New BSD License. Please see the COPYING file in the
+-- project root for the full text.
 
-print("Hello, world!")
+-- Add the directory containing this script to the package path.
+
+ServerDir = arg[0]:gsub("[^/]+$", "")
+package.path = ServerDir .. "?.lua;" .. ServerDir .. "?/init.lua;" .. package.path
+
+local Utils = require("Utils")
+local classreader = require("classreader")
+local serpent = require("serpent")
+
+local s = Utils.LoadFile("../bin/com/cowlark/luje/Main.class")
+local t, e = classreader(s)
+if e then
+	Utils.FatalError(e)
+end
+print(serpent.block(t))
 
