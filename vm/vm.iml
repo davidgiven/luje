@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="LUA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$USER_HOME$/shared/workspace/luje/vm">
+      <sourceFolder url="file://$USER_HOME$/shared/workspace/luje/vm" isTestSource="false" />
+    </content>
+    <orderEntry type="jdk" jdkName="LuaJ" jdkType="Lua SDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
+

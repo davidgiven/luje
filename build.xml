@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="build" name="cowjac">
+    <property environment="env"/>
+    <property name="ECLIPSE_HOME" value="/home/dg/apps/eclipse"/>
+    <property name="debuglevel" value="source,lines,vars"/>
+    <property name="target" value="1.6"/>
+    <property name="source" value="1.6"/>
+
+    <target name="init"/>
+
+    <target name="clean">
+        <delete dir="bin"/>
+    </target>
+
+    <target depends="clean" name="cleanall"/>
+
+    <target depends="build-library" name="build"/>
+
+    <target name="build-subprojects"/>
+
+	<target name="build-library">
+        <echo message="${ant.project.name}: ${ant.file}"/>
+
+    	<mkdir dir="bin"/>
+
+        <javac debug="true" debuglevel="${debuglevel}" destdir="bin"
+        		source="${source}" target="${target}">
+            <src path="lib"/>
+        </javac>
+	</target>
+		
+	<target name="run" depends="build">
+	</target>
+</project>
