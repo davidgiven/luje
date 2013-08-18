@@ -11,12 +11,12 @@ package.path = ServerDir .. "?.lua;" .. ServerDir .. "?/init.lua;" .. package.pa
 
 local Utils = require("Utils")
 local classanalyser = require("classanalyser")
-local serpent = require("serpent")
+local pretty = require("pl.pretty")
 
 local s = Utils.LoadFile("../bin/com/cowlark/luje/Main.class")
 local t, e = classanalyser(s)
 if e then
 	Utils.FatalError(e)
 end
-print(serpent.block(t))
+pretty.dump(t)
 
