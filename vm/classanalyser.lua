@@ -6,8 +6,11 @@
 
 local Utils = require("Utils")
 local classreader = require("classreader")
+local String = require("String")
 local dbg = Utils.Debug
 local pretty = require("pl.pretty")
+local string_byte = string.byte
+local string_find = string.find
 
 local resolveattributes
 
@@ -63,6 +66,44 @@ resolveattributes = function(class, attributes, a)
 	return a
 end
 
+local descriptor_token_parser = {
+	[73] = function(d, pos) -- I
+		return 1, pos+1
+	end,
+
+	[74] = function(d, pos) -- J
+		return 2, pos+1
+	end
+}
+
+local function parse_descriptor_token(d, pos)
+	local b = string_byte(d, pos)
+	local parser = descriptor_token_parser[b]
+	if not parser then
+		Utils.Throw("unknown descriptor token at pos "..pos.." of "..d)
+	end
+
+	return parser(d, pos)
+end
+
+local function parse_descriptor_input_params(d)
+	local params = {}
+	local pos = 2
+
+	local p
+	while (string_byte(d, pos) ~= 41) do
+		p, pos = parse_descriptor_token(d, pos)
+		params[#params+1] = p
+	end
+
+	return params
+end
+
+local function parse_descriptor_output_params(d)
+	local pos = string_find(d, ")", 1, true)
+	return (parse_descriptor_token(d, pos+1))
+end
+
 local function analyseclass(classdata)
 	local impl, e = classreader(classdata)
 	if e then
@@ -108,6 +149,11 @@ local function analyseclass(classdata)
 				f.Descriptor = Utf8Constants[n.descriptor_index]
 				f.Class = ClassConstants[c.class_index]
 
+				if (string_byte(f.Descriptor, 1) == 40) then
+					f.InParams = parse_descriptor_input_params(f.Descriptor)
+					f.OutParams = parse_descriptor_output_params(f.Descriptor)
+				end
+
 				self[k] = f
 				return f
 			end
@@ -122,7 +168,7 @@ local function analyseclass(classdata)
 				local cc
 				if (type(c) == "table") then
 					if c.string_index then
-						cc = {utf8 = Utf8Constants[c.string_index]}
+						cc = String(Utf8Constants[c.string_index])
 					end
 				end
 

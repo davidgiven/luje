@@ -11,9 +11,15 @@ public class Main
 {
 	public static int i = 1;
 
+	public static int inc(int a, long b, int c)
+	{
+		return a+1;
+	}
+
 	public static void main(String[] args)
 	{
-		i = i + 1;
+		long q = inc(i, 1, 2);
+		i = (int) q;
 	}
 
 	public static void main()

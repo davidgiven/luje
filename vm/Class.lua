@@ -8,11 +8,12 @@ local Utils = require("Utils")
 local dbg = Utils.Debug
 local pretty = require("pl.pretty")
 local string_byte = string.byte
+local table_concat = table.concat
 
 local function compile_method(class, analysis, mimpl)
 	local bytecode = mimpl.Code.Bytecode
 	local pos = 0
-	local sp = 1
+	local sp = 0
 	local stacksize = {}
 	local output = {}
 	local constants = {}
@@ -41,14 +42,20 @@ local function compile_method(class, analysis, mimpl)
 		end
 	end
 
-	local function emit(...)
+	local function emitnonl(...)
 		local args = {...}
 		local argslen = select("#", ...)
 		for i = 1, argslen do
 			output[#output+1] = tostring(args[i])
 		end
+	end
+
+	local function emit(...)
+		emitnonl(...)
 		output[#output+1] = "\n"
 	end
+
+	-- Add a constant to the (internal, per-method) constant pool.
 
 	local function constant(c)
 		assert(type(c) == "table")
@@ -57,11 +64,13 @@ local function compile_method(class, analysis, mimpl)
 			return n
 		end
 
-		n = "constants["..#constants.."]"
 		constants[#constants+1] = c
+		n = "constant"..#constants
 		constants[c] = n
 		return n
 	end
+
+	-- Declare the variables we're going to put our stack and locals in.
 
 	for i = 1, mimpl.Code.MaxStack do
 		emit("local stack", i-1)
@@ -70,6 +79,8 @@ local function compile_method(class, analysis, mimpl)
 	for i = 1, mimpl.Code.MaxLocals do
 		emit("local local", i-1)
 	end
+
+	-- This table expands all the opcodes.
 
 	local opcodemap = {
 		[0x01] = function() -- aconst_null
@@ -112,6 +123,16 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 1
 		end,
 
+		[0x09] = function() -- lconst_0
+			emit("stack", sp, " = 0")
+			sp = sp + 2
+		end,
+
+		[0x0a] = function() -- lconst_1
+			emit("stack", sp, " = 1")
+			sp = sp + 2
+		end,
+
 		[0x12] = function() -- ldc
 			local i = b()
 			local c = analysis.SimpleConstants[i]
@@ -120,6 +141,26 @@ local function compile_method(class, analysis, mimpl)
 			end
 			emit("stack", sp, " = ", c)
 			sp = sp + 1
+		end,
+
+		[0x1e] = function() -- lload_0
+			emit("stack", sp, " = local0")
+			sp = sp + 2
+		end,
+
+		[0x1f] = function() -- lload_1
+			emit("stack", sp, " = local1")
+			sp = sp + 2
+		end,
+
+		[0x20] = function() -- lload_2
+			emit("stack", sp, " = local2")
+			sp = sp + 2
+		end,
+
+		[0x21] = function() -- lload_3
+			emit("stack", sp, " = local3")
+			sp = sp + 2
 		end,
 
 		[0x2a] = function() -- aload_0
@@ -142,8 +183,38 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 1
 		end,
 
+		[0x3f] = function() -- lstore_0
+			sp = sp - 2
+			emit("local0 = stack", sp)
+		end,
+
+		[0x40] = function() -- lstore_1
+			sp = sp - 2
+			emit("local1 = stack", sp)
+		end,
+
+		[0x41] = function() -- lstore_2
+			sp = sp - 2
+			emit("local2 = stack", sp)
+		end,
+
+		[0x42] = function() -- lstore_3
+			sp = sp - 2
+			emit("local3 = stack", sp)
+		end,
+
 		[0x60] = function() -- iadd
 			emit("stack", sp-2, " = stack", sp-2, " + stack", sp-1)
+			sp = sp - 1
+		end,
+
+		[0x85] = function() -- i2l
+			emit("-- i2l stack", sp-1)
+			sp = sp + 1
+		end,
+
+		[0x88] = function() -- l2i
+			emit("stack", sp-2, " = bit.and(stack", sp-2, ", 0xffffffff)")
 			sp = sp - 1
 		end,
 
@@ -157,8 +228,8 @@ local function compile_method(class, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
-			emit(c, ".", f.Name, " = stack", sp-1)
 			sp = sp - 1
+			emit(c, ".fs_", f.Name, " = stack", sp)
 		end,
 
 		[0xb2] = function() -- getstatic
@@ -166,7 +237,7 @@ local function compile_method(class, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
-			emit("stack", sp, " = ", c, ".", f.Name)
+			emit("stack", sp, " = ", c, ".fs_", f.Name)
 			sp = sp + 1
 		end,
 
@@ -175,8 +246,32 @@ local function compile_method(class, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
+			pretty.dump(f)
 			emit("-- invokevirtual")
-		end
+		end,
+
+		[0xb8] = function() -- invokestatic
+			local i = u2()
+			local f = analysis.RefConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f.Class))
+
+			emitnonl("local r, e = ", c, "['m_", f.Name, f.Descriptor, "'](")
+
+			local numinparams = #f.InParams
+			local inparams = {}
+			for n, d in ipairs(f.InParams) do
+				sp = sp - d
+				inparams[numinparams - n + 1] = "stack"..sp
+			end
+
+			emitnonl(table_concat(inparams, ", "))
+			emit(")")
+
+			if (f.OutParams > 0) then
+				emit("stack", sp, " = r")
+				sp = sp + f.OutParams
+			end
+		end,
 	}
 
 	while (pos < #bytecode) do
