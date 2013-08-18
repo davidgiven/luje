@@ -7,6 +7,7 @@
 local Utils = require("Utils")
 local classreader = require("classreader")
 local dbg = Utils.Debug
+local pretty = require("pl.pretty")
 
 local resolveattributes
 
@@ -70,14 +71,15 @@ local function analyseclass(classdata)
 
 	local Utf8Constants = {}
 	setmetatable(Utf8Constants,
-	{
-		__index = function(self, k)
-			local s = impl.constants[k]
-			assert(type(s) == "string")
-			self[k] = s
-			return s
-		end
-	})
+		{
+			__index = function(self, k)
+				local s = impl.constants[k]
+				assert(type(s) == "string")
+				self[k] = s
+				return s
+			end
+		}
+	)
 
 	local ClassConstants = {}
 	setmetatable(ClassConstants,
@@ -91,7 +93,48 @@ local function analyseclass(classdata)
 				self[k] = s
 				return s
 			end
-		})
+		}
+	)
+
+	local RefConstants = {}
+	setmetatable(RefConstants,
+		{
+			__index = function(self, k)
+				local c = impl.constants[k]
+				local n = impl.constants[c.name_and_type_index]
+
+				local f = {}
+				f.Name = Utf8Constants[n.name_index]
+				f.Descriptor = Utf8Constants[n.descriptor_index]
+				f.Class = ClassConstants[c.class_index]
+
+				self[k] = f
+				return f
+			end
+		}
+	)
+
+	local SimpleConstants = {}
+	setmetatable(SimpleConstants,
+		{
+			__index = function(self, k)
+				local c = impl.constants[k]
+				local cc
+				if (type(c) == "table") then
+					if c.string_index then
+						cc = {utf8 = Utf8Constants[c.string_index]}
+					end
+				end
+
+				if not cc then
+					Utils.Throw("can't handle ldc with constant index "..k)
+				end
+
+				self[k] = cc
+				return cc
+			end
+		}
+	)
 
 	local Methods = {}
 	for _, m in ipairs(impl.methods) do
@@ -127,8 +170,10 @@ local function analyseclass(classdata)
 		SuperClass = ClassConstants[impl.super_class],
 		Utf8Constants = Utf8Constants,
 		ClassConstants = ClassConstants,
+		RefConstants = RefConstants,
+		SimpleConstants = SimpleConstants,
 		Methods = Methods,
-		Fields = Fields
+		Fields = Fields,
 	}
 
 	resolveattributes(class, impl.attributes, class)

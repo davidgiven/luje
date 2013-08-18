@@ -10,13 +10,12 @@ ServerDir = arg[0]:gsub("[^/]+$", "")
 package.path = ServerDir .. "?.lua;" .. ServerDir .. "?/init.lua;" .. package.path
 
 local Utils = require("Utils")
-local classanalyser = require("classanalyser")
+local ClassLoader = require("ClassLoader")
 local pretty = require("pl.pretty")
 
-local s = Utils.LoadFile("../bin/com/cowlark/luje/Main.class")
-local t, e = classanalyser(s)
-if e then
-	Utils.FatalError(e)
-end
+local t = ClassLoader:LoadClass("com/cowlark/luje/Main")
+local m = t:FindStaticMethod("main([Ljava/lang/String;)V")
+m(t, nil)
+
 pretty.dump(t)
 

@@ -9,11 +9,11 @@ package com.cowlark.luje;
  */
 public class Main
 {
-	public int i = 1;
+	public static int i = 1;
 
 	public static void main(String[] args)
 	{
-		System.out.println("Hello, world!");
+		i = i + 1;
 	}
 
 	public static void main()
