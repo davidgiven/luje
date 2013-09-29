@@ -66,6 +66,8 @@ resolveattributes = function(class, attributes, a)
 	return a
 end
 
+local parse_descriptor_token
+
 local descriptor_token_parser = {
 	[73] = function(d, pos) -- I
 		return 1, pos+1
@@ -73,10 +75,24 @@ local descriptor_token_parser = {
 
 	[74] = function(d, pos) -- J
 		return 2, pos+1
+	end,
+
+	[86] = function(d, pos) -- V
+		return 0, pos
+	end,
+
+	[91] = function(d, pos) -- [
+		local _, p = parse_descriptor_token(d, pos+1)
+		return 1, p
+	end,
+
+	[76] = function(d, pos) -- L
+		local s, e = string_find(d, ";", pos+1)
+		return 1, e+1
 	end
 }
 
-local function parse_descriptor_token(d, pos)
+parse_descriptor_token = function(d, pos)
 	local b = string_byte(d, pos)
 	local parser = descriptor_token_parser[b]
 	if not parser then
@@ -190,6 +206,8 @@ local function analyseclass(classdata)
 			AccessFlags = m.access_flags,
 			Name = name,
 			Descriptor = descriptor,
+			InParams = parse_descriptor_input_params(descriptor),
+			OutParams = parse_descriptor_output_params(descriptor),
 		}
 		resolveattributes(class, m.attributes, method)
 		Methods[name..descriptor] = method

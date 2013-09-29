@@ -123,7 +123,7 @@ local function loadclass(classdata)
 		classobj.interfaces[i] = u2()
 	end
 
-	-- Function to load an attribute --- we'l use this later.
+	-- Function to load an attribute --- we'll use this later.
 
 	local attributes
 

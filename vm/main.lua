@@ -14,8 +14,10 @@ local ClassLoader = require("ClassLoader")
 local pretty = require("pl.pretty")
 
 local t = ClassLoader:LoadClass("com/cowlark/luje/Main")
-local m = t:FindStaticMethod("main([Ljava/lang/String;)V")
-m(t, nil)
+local m = t["m_main([Ljava/lang/String;)V"]
+Utils.Assert(m, "this isn't a main class")
+local r = m(t, nil)
 
+pretty.dump(r)
 pretty.dump(t)
 

@@ -8,6 +8,7 @@ local Utils = require("Utils")
 local dbg = Utils.Debug
 local pretty = require("pl.pretty")
 local string_byte = string.byte
+local string_find = string.find
 local table_concat = table.concat
 
 local function compile_method(class, analysis, mimpl)
@@ -16,7 +17,6 @@ local function compile_method(class, analysis, mimpl)
 	local sp = 0
 	local stacksize = {}
 	local output = {}
-	local constants = {}
 
 	local function b()
 		pos = pos + 1 -- increment first to apply +1 offset
@@ -57,6 +57,7 @@ local function compile_method(class, analysis, mimpl)
 
 	-- Add a constant to the (internal, per-method) constant pool.
 
+	local constants = {}
 	local function constant(c)
 		assert(type(c) == "table")
 		local n = constants[c]
@@ -70,13 +71,36 @@ local function compile_method(class, analysis, mimpl)
 		return n
 	end
 
+	-- Emit a check for null for the specified variable.
+	
+	local function nullcheck(v)
+		emitnonl("nullcheck(", v, "); ")
+	end
+
+	-- Emit the function prologue.
+	
+	emitnonl("function(")
+	local minlocals = 1
+	do
+		local first = true
+		for n, d in ipairs(mimpl.InParams) do
+			if not first then
+				emitnonl(", ")
+			end
+			first = false
+			emitnonl("local", (minlocals-1))
+			minlocals = minlocals + d
+		end
+	end
+	emit(")")
+
 	-- Declare the variables we're going to put our stack and locals in.
 
 	for i = 1, mimpl.Code.MaxStack do
 		emit("local stack", i-1)
 	end
 
-	for i = 1, mimpl.Code.MaxLocals do
+	for i = minlocals, mimpl.Code.MaxLocals do
 		emit("local local", i-1)
 	end
 
@@ -140,6 +164,26 @@ local function compile_method(class, analysis, mimpl)
 				c = constant(c)
 			end
 			emit("stack", sp, " = ", c)
+			sp = sp + 1
+		end,
+
+		[0x1a] = function() -- iload_0
+			emit("stack", sp, " = local0")
+			sp = sp + 1
+		end,
+
+		[0x1b] = function() -- iload_1
+			emit("stack", sp, " = local1")
+			sp = sp + 1
+		end,
+
+		[0x1c] = function() -- iload_2
+			emit("stack", sp, " = local2")
+			sp = sp + 1
+		end,
+
+		[0x1d] = function() -- iload_3
+			emit("stack", sp, " = local3")
 			sp = sp + 1
 		end,
 
@@ -218,6 +262,11 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 1
 		end,
 
+		[0xac] = function() -- ireturn
+			emit("do return stack", sp-1, " end")
+			sp = 0
+		end,
+
 		[0xb1] = function() -- return
 			emit("do return end")
 			sp = 0
@@ -272,6 +321,11 @@ local function compile_method(class, analysis, mimpl)
 				sp = sp + f.OutParams
 			end
 		end,
+
+		[0xbe] = function() -- arraylength
+			nullcheck("stack"..(sp-1))
+			emit("stack", (sp-1), " = stack", (sp-1), ":length()")
+		end,
 	}
 
 	while (pos < #bytecode) do
@@ -286,8 +340,42 @@ local function compile_method(class, analysis, mimpl)
 		opcodec()
 	end
 
-	dbg(table.concat(output))
-	return output
+	-- Emit function epilogue.
+	
+	emit("return end")
+
+	-- Wrap the whole thing in the constructor function used to pass in the
+	-- constant pool.
+	
+	local wrapper = {
+		"return function("
+	}
+
+	do
+		local first = true
+		for k, _ in ipairs(constants) do
+			if not first then
+				wrapper[#wrapper+1] = ", "
+			end
+			first = false
+			wrapper[#wrapper+1] = "constant"..k
+		end
+	end
+
+	wrapper[#wrapper+1] = ")\nreturn "
+	wrapper[#wrapper+1] = table_concat(output)
+	wrapper[#wrapper+1] = "end"
+
+	-- Compile it.
+	
+	dbg(table_concat(wrapper))
+	local chunk, e = load(table_concat(wrapper))
+	Utils.Check(e, "compilation failed")
+
+	-- Now actually call the constructor, with the constants, to produce the
+	-- runnable method.
+	
+	return chunk()(unpack(constants))
 end
 
 local function compile_static_method(class, analysis, mimpl)
@@ -296,11 +384,18 @@ end
 
 return function(classloader)
 	local analysis
-	local compiledMethods = {}
 
-	local c = {
+	local c
+	c = {
 		Init = function(self, a)
 			analysis = a
+
+			-- Create any fields defined by this class.
+
+			for name, field in pairs(a.Fields) do
+				dbg("warning: field ", name, " initialised to 0")
+				c["fs_"..name] = 0
+			end
 		end,
 
 		ClassLoader = function(self)
@@ -308,17 +403,25 @@ return function(classloader)
 		end,
 
 		FindStaticMethod = function(self, n)
-			local m = compiledMethods[n]
-			if m then
-				return m
-			end
+			dbg("looking for ", n)
 
 			local mimpl = analysis.Methods[n]
 			m = compile_static_method(self, analysis, mimpl)
-			compiledMethods[n] = m
 			return m
 		end
 	}
+
+	setmetatable(c,
+		{
+			__index = function(self, k)
+				local _, _, n = string_find(k, "m_(.*)")
+				Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
+				local m = c:FindStaticMethod(n)
+				c[k] = m
+				return m
+			end
+		}
+	)
 
 	return c
 end
