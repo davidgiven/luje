@@ -45,6 +45,10 @@ local attribute_resolvers =
 
 	["Deprecated"] = function(class, attribute)
 		return true
+	end,
+
+	["StackMapTable"] = function(class, attribute)
+		return attribute
 	end
 }
 

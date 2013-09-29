@@ -214,6 +214,13 @@ local function loadclass(classdata)
 			return a
 		end,
 
+		["StackMapTable"] = function()
+			local stack_map_table_length = u2()
+			-- ignore this for now, as we don't use it and it's a pain to
+			-- parse
+			return {}
+		end,
+
 		["Deprecated"] = function()
 			return {};
 		end,
@@ -225,7 +232,7 @@ local function loadclass(classdata)
 		local reader = attribute_reader[attribute_name]
 
 		if not reader then
-			Utils.Throw("unknown attribute with name index "..attribute_name_index)
+			Utils.Throw("unknown attribute with name "..attribute_name)
 		end
 
 		local len = u4()

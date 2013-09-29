@@ -18,13 +18,29 @@ local function compile_method(class, analysis, mimpl)
 	local stacksize = {}
 	local output = {}
 
-	local function b()
+	local function u1()
 		pos = pos + 1 -- increment first to apply +1 offset
 		return string_byte(bytecode, pos)
 	end
 
+	local function s1()
+		local u = u1()
+		if (u >= 128) then
+			u = u - 256
+		end
+		return u
+	end
+
 	local function u2()
-		return b()*0x100 + b()
+		return u1()*0x100 + u1()
+	end
+
+	local function s2()
+		local u = u2()
+		if (u >= 32768) then
+			u = u - 65536
+		end
+		return u
 	end
 
 	local function u4(n)
@@ -157,8 +173,14 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 2
 		end,
 
+		[0x10] = function() -- bipush
+			local i = s1()
+			emit("stack", sp, " = ", i)
+			sp = sp + 1
+		end,
+
 		[0x12] = function() -- ldc
-			local i = b()
+			local i = u1()
 			local c = analysis.SimpleConstants[i]
 			if (type(c) == "table") then
 				c = constant(c)
@@ -252,6 +274,16 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 1
 		end,
 
+		[0x64] = function() -- isub
+			emit("stack", sp-2, " = stack", sp-2, " - stack", sp-1)
+			sp = sp - 1
+		end,
+
+		[0x68] = function() -- imul
+			emit("stack", sp-2, " = stack", sp-2, " * stack", sp-1)
+			sp = sp - 1
+		end,
+
 		[0x85] = function() -- i2l
 			emit("-- i2l stack", sp-1)
 			sp = sp + 1
@@ -260,6 +292,48 @@ local function compile_method(class, analysis, mimpl)
 		[0x88] = function() -- l2i
 			emit("stack", sp-2, " = bit.and(stack", sp-2, ", 0xffffffff)")
 			sp = sp - 1
+		end,
+
+		[0x99] = function() -- ifeq
+			local delta = s2() - 3
+			emit("if (stack", sp-1, " == 0) then goto pc_", pos+delta, " end")
+			sp = sp - 1
+		end,
+
+		[0x9a] = function() -- ifeq
+			local delta = s2() - 3
+			emit("if (stack", sp-1, " ~= 0) then goto pc_", pos+delta, " end")
+			sp = sp - 1
+		end,
+
+		[0x9b] = function() -- iflt
+			local delta = s2() - 3
+			emit("if (stack", sp-1, " < 0) then goto pc_", pos+delta, " end")
+			sp = sp - 1
+		end,
+
+		[0x9c] = function() -- ifge
+			local delta = s2() - 3
+			emit("if (stack", sp-1, " >= 0) then goto pc_", pos+delta, " end")
+			sp = sp - 1
+		end,
+
+		[0x9d] = function() -- ifgt
+			local delta = s2() - 3
+			emit("if (stack", sp-1, " > 0) then goto pc_", pos+delta, " end")
+			sp = sp - 1
+		end,
+
+		[0x9e] = function() -- ifle
+			local delta = s2() - 3
+			emit("if (stack", sp-1, " <= 0) then goto pc_", pos+delta, " end")
+			sp = sp - 1
+		end,
+
+		[0xa7] = function() -- goto
+			local delta = s2() - 3
+			emit("goto pc_", pos+delta)
+			sp = 0
 		end,
 
 		[0xac] = function() -- ireturn
@@ -332,7 +406,7 @@ local function compile_method(class, analysis, mimpl)
 		checkstack(pos)
 		output[#output+1] = "::pc_"..pos..":: "
 
-		local opcode = b()
+		local opcode = u1()
 		local opcodec = opcodemap[opcode]
 		if not opcodec then
 			Utils.Throw("unimplemented opcode 0x"..string.format("%02x", opcode))

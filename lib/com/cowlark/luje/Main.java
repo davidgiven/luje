@@ -11,6 +11,9 @@ public class Main
 
 	public static void main(String[] argv)
 	{
-		i = increment(i) + j;
+		while (i == 0)
+		{
+			i++;
+		}
 	}
 }
