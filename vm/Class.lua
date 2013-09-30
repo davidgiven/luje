@@ -6,10 +6,21 @@
 
 local Utils = require("Utils")
 local dbg = Utils.Debug
+local Runtime = require("Runtime")
 local pretty = require("pl.pretty")
 local string_byte = string.byte
 local string_find = string.find
 local table_concat = table.concat
+local Cast = require("Cast")
+local BtoSB = Cast.BtoSB
+local BBtoW = Cast.BBtoW
+local WtoSW = Cast.WtoSW
+local WWtoI = Cast.WWtoI
+local ItoSI = Cast.ItoSI
+
+-- This function does the bytecode compilation. It takes the bytecode and
+-- converts it into a Lua script, then compiles it and returns the method as
+-- a callable function.
 
 local function compile_method(class, analysis, mimpl)
 	local bytecode = mimpl.Code.Bytecode
@@ -25,26 +36,29 @@ local function compile_method(class, analysis, mimpl)
 
 	local function s1()
 		local u = u1()
-		if (u >= 128) then
-			u = u - 256
-		end
-		return u
+		return BtoSB(u)
 	end
 
 	local function u2()
-		return u1()*0x100 + u1()
+		local hi = u1()
+		local lo = u1()
+		return BBtoW(hi, lo)
 	end
 
 	local function s2()
-		local u = u2()
-		if (u >= 32768) then
-			u = u - 65536
-		end
-		return u
+		local i = u2()
+		return WtoSW(i)
 	end
 
-	local function u4(n)
-		return u2()*0x10000 + u2()
+	local function u4()
+		local hi = u2()
+		local lo = u2()
+		return WWtoI(hi, lo)
+	end
+
+	local function s4()
+		local i = u4()
+		return ItoSI(i)
 	end
 
 	local function checkstack(pc)
@@ -257,6 +271,11 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 2
 		end,
 
+		[0x27] = function() -- dload_1
+			emit("stack", sp, " = local1")
+			sp = sp + 2
+		end,
+
 		[0x28] = function() -- dload_2
 			emit("stack", sp, " = local2")
 			sp = sp + 2
@@ -302,9 +321,19 @@ local function compile_method(class, analysis, mimpl)
 			emit("local3 = stack", sp)
 		end,
 
+		[0x48] = function() -- dstore_1
+			sp = sp - 2
+			emit("local1 = stack", sp)
+		end,
+
 		[0x60] = function() -- iadd
 			emit("stack", sp-2, " = stack", sp-2, " + stack", sp-1)
 			sp = sp - 1
+		end,
+
+		[0x63] = function() -- dadd
+			emit("stack", sp-4, " = stack", sp-4, " + stack", sp-2)
+			sp = sp - 2
 		end,
 
 		[0x64] = function() -- isub
@@ -335,6 +364,13 @@ local function compile_method(class, analysis, mimpl)
 		[0x88] = function() -- l2i
 			emit("stack", sp-2, " = bit.and(stack", sp-2, ", 0xffffffff)")
 			sp = sp - 1
+		end,
+
+		[0x98] = function() -- dcmpg
+			emitnonl("if (stack", sp-4, " == stack", sp-2, ") then stack", sp-4, " = 0 elseif ")
+			emitnonl("(stack", sp-4, " < stack", sp-2, ") then stack", sp-4, " = -1 else ")
+			emit("stack", sp-4, " = 1 end")
+			sp = sp - 3
 		end,
 
 		[0x99] = function() -- ifeq
@@ -426,7 +462,7 @@ local function compile_method(class, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
-			emitnonl("local r, e = ", c, "['m_", f.Name, f.Descriptor, "'](")
+			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "'](")
 
 			local numinparams = #f.InParams
 			local inparams = {}
@@ -436,12 +472,14 @@ local function compile_method(class, analysis, mimpl)
 			end
 
 			emitnonl(table_concat(inparams, ", "))
-			emit(")")
+			emitnonl(") ")
 
 			if (f.OutParams > 0) then
-				emit("stack", sp, " = r")
+				emitnonl("stack", sp, " = r")
 				sp = sp + f.OutParams
 			end
+
+			emit(" end")
 		end,
 
 		[0xbe] = function() -- arraylength
@@ -500,8 +538,22 @@ local function compile_method(class, analysis, mimpl)
 	return chunk()(unpack(constants))
 end
 
+-- This function takes a reference to a native method, and returns the
+-- Lua method which implements it after looking it up in the native
+-- method registration table.
+
+local function compile_native_method(class, analysis, mimpl)
+	local f = Runtime.FindNativeMethod(analysis.ThisClass, mimpl.Name .. mimpl.Descriptor)
+	Utils.Assert(f, "no native method for ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
+	return f
+end
+
 local function compile_static_method(class, analysis, mimpl)
-	return compile_method(class, analysis, mimpl)
+	if string_find(mimpl.AccessFlags, " native ") then
+		return compile_native_method(class, analysis, mimpl)
+	else
+		return compile_method(class, analysis, mimpl)
+	end
 end
 
 return function(classloader)

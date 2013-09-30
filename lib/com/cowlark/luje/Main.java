@@ -6,11 +6,12 @@ public class Main
 
 	public static double quadratic(double a, double b, double c)
 	{
-		return (b*b) - (4*a*c);
+		return Math.sqrt((b*b) - (4*a*c));
 	}
 
 	public static void main(String[] argv)
 	{
-		x = quadratic(1, 2, 3);
+		for (double d = 0; d<100; d+=.5)
+			x += Math.sqrt(d);
 	}
 }

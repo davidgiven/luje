@@ -11,6 +11,7 @@ local dbg = Utils.Debug
 local pretty = require("pl.pretty")
 local string_byte = string.byte
 local string_find = string.find
+local table_concat = table.concat
 
 local resolveattributes
 
@@ -49,7 +50,11 @@ local attribute_resolvers =
 
 	["StackMapTable"] = function(class, attribute)
 		return attribute
-	end
+	end,
+
+	["ConstantValue"] = function(class, attribute)
+		return attribute.value
+	end,
 }
 
 resolveattributes = function(class, attributes, a)
@@ -75,6 +80,10 @@ local parse_descriptor_token
 local descriptor_token_parser = {
 	[68] = function(d, pos) -- D
 		return 2, pos+1
+	end,
+
+	[70] = function(d, pos) -- F
+		return 1, pos+1
 	end,
 
 	[73] = function(d, pos) -- I
@@ -126,6 +135,24 @@ end
 local function parse_descriptor_output_params(d)
 	local pos = string_find(d, ")", 1, true)
 	return (parse_descriptor_token(d, pos+1))
+end
+
+local function parse_access_flags(flags)
+	local f = {""}
+	if (bit.band(flags, 0x0001) ~= 0) then f[#f+1] = "public" end
+	if (bit.band(flags, 0x0002) ~= 0) then f[#f+1] = "private" end
+	if (bit.band(flags, 0x0004) ~= 0) then f[#f+1] = "protected" end
+	if (bit.band(flags, 0x0008) ~= 0) then f[#f+1] = "static" end
+	if (bit.band(flags, 0x0010) ~= 0) then f[#f+1] = "final" end
+	if (bit.band(flags, 0x0020) ~= 0) then f[#f+1] = "synchronized" end
+	if (bit.band(flags, 0x0040) ~= 0) then f[#f+1] = "volatile" end
+	if (bit.band(flags, 0x0080) ~= 0) then f[#f+1] = "transient" end
+	if (bit.band(flags, 0x0100) ~= 0) then f[#f+1] = "native" end
+	if (bit.band(flags, 0x0200) ~= 0) then f[#f+1] = "interface" end
+	if (bit.band(flags, 0x0400) ~= 0) then f[#f+1] = "abstract" end
+	if (bit.band(flags, 0x0800) ~= 0) then f[#f+1] = "strict" end
+	f[#f+1] = ""
+	return table_concat(f, " ")
 end
 
 local function analyseclass(classdata)
@@ -215,7 +242,7 @@ local function analyseclass(classdata)
 		local name = Utf8Constants[m.name_index]
 		local descriptor = Utf8Constants[m.descriptor_index]
 		local method = {
-			AccessFlags = m.access_flags,
+			AccessFlags = parse_access_flags(m.access_flags),
 			Name = name,
 			Descriptor = descriptor,
 			InParams = parse_descriptor_input_params(descriptor),
@@ -230,7 +257,7 @@ local function analyseclass(classdata)
 		local name = Utf8Constants[f.name_index]
 		local descriptor = Utf8Constants[f.descriptor_index]
 		local field = {
-			AccessFlags = f.access_flags,
+			AccessFlags = parse_access_flags(f.access_flags),
 			Name = name,
 			Descriptor = descriptor,
 		}
@@ -241,7 +268,7 @@ local function analyseclass(classdata)
 	class = {
 		MinorVersion = impl.minor_version,
 		MajorVersion = impl.major_version,
-		AccessFlags = impl.access_flags,
+		AccessFlags = parse_access_flags(impl.access_flags),
 		ThisClass = ClassConstants[impl.this_class],
 		SuperClass = ClassConstants[impl.super_class],
 		Utf8Constants = Utf8Constants,

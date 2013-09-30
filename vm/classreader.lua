@@ -9,8 +9,15 @@ local Cast = require("Cast")
 local dbg = Utils.Debug
 local string_byte = string.byte
 local string_sub = string.sub
-local inttofloat = Cast.IntToFloat
-local intpairtodouble = Cast.IntPairToDouble
+local BBtoW = Cast.BBtoW
+local BBtoSW = Cast.BBtoSW
+local WWtoI = Cast.WWtoI
+local WWtoSI = Cast.WWtoSI
+local ItoF = Cast.ItoF
+local ItoSI = Cast.ItoSI
+local IItoL = Cast.IItoL
+local IItoSL = Cast.IItoSL
+local IItoD = Cast.IItoD
 
 local function loadclass(classdata)
 	local classobj = {}
@@ -23,22 +30,37 @@ local function loadclass(classdata)
 	end
 
 	local function u2()
-		return u1()*0x100 + u1()
+		local hi = u1()
+		local lo = u1()
+		return BBtoW(hi, lo)
 	end
 
 	local function u4()
-		return u2()*0x10000 + u2()
+		local hi = u2()
+		local lo = u2()
+		return WWtoI(hi, lo)
+	end
+
+	local function s4()
+		local i = u4()
+		return ItoSI(i)
 	end
 
 	local function f4()
 		local i = u4()
-		return inttofloat(i)
+		return ItoF(i)
+	end
+
+	local function s8()
+		local hi = u4()
+		local lo = u4()
+		return IItoSL(hi, lo)
 	end
 
 	local function f8()
 		local hi = u4()
 		local lo = u4()
-		return intpairtodouble(lo, hi)
+		return IItoD(hi, lo)
 	end
 
 	local function utf8(count)
@@ -71,6 +93,7 @@ local function loadclass(classdata)
 		end,
 
 		[3] = function() -- CONSTANT_Integer
+			return s4(), 1
 		end,
 
 		[4] = function() -- CONSTANT_Float
@@ -78,6 +101,7 @@ local function loadclass(classdata)
 		end,
 
 		[5] = function() -- CONSTANT_Long
+			return s8(), 2
 		end,
 
 		[6] = function() -- CONSTANT_Double
@@ -149,6 +173,11 @@ local function loadclass(classdata)
 
 	local attribute_reader = {
 		["ConstantValue"] = function()
+			local constantvalue_index = u2()
+			local constantvalue = classobj.constants[constantvalue_index]
+			return {
+				value = constantvalue
+			}
 		end,
 
 		["Code"] = function()
@@ -258,7 +287,7 @@ local function loadclass(classdata)
 		local len = u4()
 		local oldpos = pos
 		local a = reader()
-		if not a then
+		if (a == nil) then
 			Utils.Throw("unimplemented attribute "..attribute_name)
 		end
 		a.attribute_name = attribute_name
