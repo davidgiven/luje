@@ -173,6 +173,16 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 2
 		end,
 
+		[0x0e] = function() -- dconst_0
+			emit("stack", sp, " = 0")
+			sp = sp + 2
+		end,
+
+		[0x0f] = function() -- dconst_1
+			emit("stack", sp, " = 1")
+			sp = sp + 2
+		end,
+
 		[0x10] = function() -- bipush
 			local i = s1()
 			emit("stack", sp, " = ", i)
@@ -187,6 +197,19 @@ local function compile_method(class, analysis, mimpl)
 			end
 			emit("stack", sp, " = ", c)
 			sp = sp + 1
+		end,
+
+		[0x14] = function() -- ldc2_w
+			local i = u2()
+			local c = analysis.SimpleConstants[i]
+			emit("stack", sp, " = ", c)
+			sp = sp + 2
+		end,
+
+		[0x18] = function() -- dload
+			local i = u1()
+			emit("stack", sp, " = local", i)
+			sp = sp + 2
 		end,
 
 		[0x1a] = function() -- iload_0
@@ -226,6 +249,16 @@ local function compile_method(class, analysis, mimpl)
 
 		[0x21] = function() -- lload_3
 			emit("stack", sp, " = local3")
+			sp = sp + 2
+		end,
+
+		[0x26] = function() -- dload_0
+			emit("stack", sp, " = local0")
+			sp = sp + 2
+		end,
+
+		[0x28] = function() -- dload_2
+			emit("stack", sp, " = local2")
 			sp = sp + 2
 		end,
 
@@ -282,6 +315,16 @@ local function compile_method(class, analysis, mimpl)
 		[0x68] = function() -- imul
 			emit("stack", sp-2, " = stack", sp-2, " * stack", sp-1)
 			sp = sp - 1
+		end,
+
+		[0x6b] = function() -- dmul
+			emit("stack", sp-4, " = stack", sp-4, " * stack", sp-2)
+			sp = sp - 2
+		end,
+
+		[0x67] = function() -- dsub
+			emit("stack", sp-4, " = stack", sp-4, " - stack", sp-2)
+			sp = sp - 2
 		end,
 
 		[0x85] = function() -- i2l
@@ -341,6 +384,11 @@ local function compile_method(class, analysis, mimpl)
 			sp = 0
 		end,
 
+		[0xaf] = function() -- dreturn
+			emit("do return stack", sp-2, " end")
+			sp = 0
+		end,
+
 		[0xb1] = function() -- return
 			emit("do return end")
 			sp = 0
@@ -351,7 +399,7 @@ local function compile_method(class, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
-			sp = sp - 1
+			sp = sp - f.Size
 			emit(c, ".fs_", f.Name, " = stack", sp)
 		end,
 
@@ -361,7 +409,7 @@ local function compile_method(class, analysis, mimpl)
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
 			emit("stack", sp, " = ", c, ".fs_", f.Name)
-			sp = sp + 1
+			sp = sp + f.Size
 		end,
 
 		[0xb6] = function() -- invokevirtual

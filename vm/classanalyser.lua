@@ -73,6 +73,10 @@ end
 local parse_descriptor_token
 
 local descriptor_token_parser = {
+	[68] = function(d, pos) -- D
+		return 2, pos+1
+	end,
+
 	[73] = function(d, pos) -- I
 		return 1, pos+1
 	end,
@@ -172,6 +176,8 @@ local function analyseclass(classdata)
 				if (string_byte(f.Descriptor, 1) == 40) then
 					f.InParams = parse_descriptor_input_params(f.Descriptor)
 					f.OutParams = parse_descriptor_output_params(f.Descriptor)
+				else
+					f.Size = (parse_descriptor_token(f.Descriptor, 1))
 				end
 
 				self[k] = f
@@ -190,6 +196,8 @@ local function analyseclass(classdata)
 					if c.string_index then
 						cc = String(Utf8Constants[c.string_index])
 					end
+				else
+					cc = c
 				end
 
 				if not cc then

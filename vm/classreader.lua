@@ -5,26 +5,40 @@
 -- project root for the full text.
 
 local Utils = require("Utils")
+local Cast = require("Cast")
 local dbg = Utils.Debug
 local string_byte = string.byte
 local string_sub = string.sub
+local inttofloat = Cast.IntToFloat
+local intpairtodouble = Cast.IntPairToDouble
 
 local function loadclass(classdata)
 	local classobj = {}
 	local pos = 1
 
-	local function b()
+	local function u1()
 		local r = string_byte(classdata, pos)
 		pos = pos + 1
 		return r
 	end
 
 	local function u2()
-		return b()*0x100 + b()
+		return u1()*0x100 + u1()
 	end
 
-	local function u4(n)
+	local function u4()
 		return u2()*0x10000 + u2()
+	end
+
+	local function f4()
+		local i = u4()
+		return inttofloat(i)
+	end
+
+	local function f8()
+		local hi = u4()
+		local lo = u4()
+		return intpairtodouble(lo, hi)
 	end
 
 	local function utf8(count)
@@ -46,38 +60,40 @@ local function loadclass(classdata)
 		return {
 			class_index = u2(),
 			name_and_type_index = u2()
-		}
+		}, 1
 	end
 
 	local constant_reader =
 	{
 		[1] = function() -- CONSTANT_Utf8
 			local len = u2()
-			return utf8(len)
+			return utf8(len), 1
 		end,
 
 		[3] = function() -- CONSTANT_Integer
 		end,
 
 		[4] = function() -- CONSTANT_Float
+			return f4(), 1
 		end,
 
 		[5] = function() -- CONSTANT_Long
 		end,
 
 		[6] = function() -- CONSTANT_Double
+			return f8(), 2
 		end,
 
 		[7] = function() -- CONSTANT_Class
 			return {
 				name_index = u2()
-			}
+			}, 1
 		end,
 
 		[8] = function() -- CONSTANT_String
 			return {
 				string_index = u2()
-			}
+			}, 1
 		end,
 
 		[9] = ref_reader, -- CONSTANT_Fieldref
@@ -88,25 +104,29 @@ local function loadclass(classdata)
 			return {
 				name_index = u2(),
 				descriptor_index = u2()
-			}
+			}, 1
 		end
 	}
 
 	local constant_pool_count = u2()
 	classobj.constants = {}
-	for i=1, constant_pool_count-1 do
-		local tag = b()
-		local reader = constant_reader[tag]
-		if not reader then
-			Utils.Throw("invalid constant pool tag "..tag)
-		end
+	do
+		local i = 1
+		while (i < constant_pool_count) do
+			local tag = u1()
+			local reader = constant_reader[tag]
+			if not reader then
+				Utils.Throw("invalid constant pool tag "..tag)
+			end
 
-		local c = reader()
-		if not c then
-			Utils.Throw("unimplemented constant pool tag "..tag)
-		end
+			local c, d = reader()
+			if not c then
+				Utils.Throw("unimplemented constant pool tag "..tag)
+			end
 
-		classobj.constants[i] = c
+			classobj.constants[i] = c
+			i = i + d
+		end
 	end
 
 	-- More miscellaneous fields
