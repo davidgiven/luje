@@ -12,6 +12,6 @@ public class Main
 	public static void main(String[] argv)
 	{
 		for (double d = 0; d<100; d+=.5)
-			x += Math.sqrt(d);
+			x += quadratic(d, 1, 2);
 	}
 }
