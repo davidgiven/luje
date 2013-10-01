@@ -220,6 +220,12 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 2
 		end,
 
+		[0x16] = function() -- lload
+			local i = u1()
+			emit("stack", sp, " = local", i)
+			sp = sp + 2
+		end,
+
 		[0x18] = function() -- dload
 			local i = u1()
 			emit("stack", sp, " = local", i)
@@ -281,6 +287,11 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 2
 		end,
 
+		[0x29] = function() -- dload_3
+			emit("stack", sp, " = local3")
+			sp = sp + 2
+		end,
+
 		[0x2a] = function() -- aload_0
 			emit("stack", sp, " = local0")
 			sp = sp + 1
@@ -299,6 +310,32 @@ local function compile_method(class, analysis, mimpl)
 		[0x2d] = function() -- aload_3
 			emit("stack", sp, " = local3")
 			sp = sp + 1
+		end,
+
+		[0x37] = function() -- lstore
+			local var = u1()
+			sp = sp - 2
+			emit("local", var, " = stack", sp)
+		end,
+
+		[0x3b] = function() -- istore_0
+			sp = sp - 1
+			emit("local0 = stack", sp)
+		end,
+
+		[0x3c] = function() -- istore_1
+			sp = sp - 1
+			emit("local1 = stack", sp)
+		end,
+
+		[0x3d] = function() -- istore_2
+			sp = sp - 1
+			emit("local2 = stack", sp)
+		end,
+
+		[0x3e] = function() -- istore_3
+			sp = sp - 1
+			emit("local3 = stack", sp)
 		end,
 
 		[0x3f] = function() -- lstore_0
@@ -326,9 +363,25 @@ local function compile_method(class, analysis, mimpl)
 			emit("local1 = stack", sp)
 		end,
 
+		[0x4a] = function() -- dstore_3
+			sp = sp - 2
+			emit("local3 = stack", sp)
+		end,
+
+		[0x5c] = function() -- dup2
+			sp = sp + 2
+			emitnonl("stack", sp-2, " = stack", sp-4, " ")
+			emit("stack", sp-1, " = stack", sp-3)
+		end,
+
 		[0x60] = function() -- iadd
 			emit("stack", sp-2, " = stack", sp-2, " + stack", sp-1)
 			sp = sp - 1
+		end,
+
+		[0x61] = function() -- ladd
+			emit("stack", sp-4, " = stack", sp-4, " + stack", sp-2)
+			sp = sp - 2
 		end,
 
 		[0x63] = function() -- dadd
@@ -337,12 +390,27 @@ local function compile_method(class, analysis, mimpl)
 		end,
 
 		[0x64] = function() -- isub
-			emit("stack", sp-2, " = stack", sp-2, " - stack", sp-1)
+			emit("stack", sp-2, " = bit.tobit(stack", sp-2, " - stack", sp-1, ")")
 			sp = sp - 1
+		end,
+
+		[0x65] = function() -- lsub
+			emit("stack", sp-4, " = stack", sp-4, " - stack", sp-2)
+			sp = sp - 2
 		end,
 
 		[0x68] = function() -- imul
 			emit("stack", sp-2, " = stack", sp-2, " * stack", sp-1)
+			sp = sp - 1
+		end,
+
+		[0x69] = function() -- lmul
+			emit("stack", sp-4, " = stack", sp-4, " * stack", sp-2)
+			sp = sp - 2
+		end,
+
+		[0x6c] = function() -- idiv
+			emit("stack", sp-2, " = bit.tobit(stack", sp-2, " / stack", sp-1, ")")
 			sp = sp - 1
 		end,
 
@@ -351,21 +419,53 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 2
 		end,
 
+		[0x6d] = function() -- ldiv
+			emit("stack", sp-4, " = stack", sp-4, " / stack", sp-2)
+			sp = sp - 2
+		end,
+
+		[0x6f] = function() -- ddiv
+			emit("stack", sp-4, " = stack", sp-4, " / stack", sp-2)
+			sp = sp - 2
+		end,
+
 		[0x67] = function() -- dsub
 			emit("stack", sp-4, " = stack", sp-4, " - stack", sp-2)
 			sp = sp - 2
 		end,
 
+		[0x84] = function() -- iinc
+			local var = u1()
+			local i = s1()
+			emit("local", var, " = bit.tobit(local", var, " + ", i, ")")
+		end,
+
 		[0x85] = function() -- i2l
-			emit("-- i2l stack", sp-1)
+			emit("stack", sp-1, " = ffi.cast('int64_t', stack", sp-1, ")")
+			sp = sp + 1
+		end,
+
+		[0x87] = function() -- i2d
+			emit("stack", sp-1, " = tonumber(stack", sp-1, ")")
 			sp = sp + 1
 		end,
 
 		[0x88] = function() -- l2i
-			emit("stack", sp-2, " = bit.and(stack", sp-2, ", 0xffffffff)")
+			emit("stack", sp-2, " = bit.tobit(tonumber(stack", sp-2, "))")
 			sp = sp - 1
 		end,
 
+		[0x8a] = function() -- l2d
+			emit("stack", sp-2, " = tonumber(stack", sp-2, ")")
+		end,
+
+		[0x94] = function() -- lcmp
+			emitnonl("if (stack", sp-4, " == stack", sp-2, ") then stack", sp-4, " = 0 elseif ")
+			emitnonl("(stack", sp-4, " < stack", sp-2, ") then stack", sp-4, " = -1 else ")
+			emit("stack", sp-4, " = 1 end")
+			sp = sp - 3
+		end,
+			
 		[0x98] = function() -- dcmpg
 			emitnonl("if (stack", sp-4, " == stack", sp-2, ") then stack", sp-4, " = 0 elseif ")
 			emitnonl("(stack", sp-4, " < stack", sp-2, ") then stack", sp-4, " = -1 else ")
@@ -409,6 +509,12 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 1
 		end,
 
+		[0xa2] = function() -- if_icmpge
+			local delta = s2() - 3
+			emit("if (stack", sp-2, " >= stack", sp-1, ") then goto pc_", pos+delta, " end")
+			sp = sp - 2
+		end,
+
 		[0xa7] = function() -- goto
 			local delta = s2() - 3
 			emit("goto pc_", pos+delta)
@@ -422,6 +528,11 @@ local function compile_method(class, analysis, mimpl)
 
 		[0xaf] = function() -- dreturn
 			emit("do return stack", sp-2, " end")
+			sp = 0
+		end,
+
+		[0xb0] = function() -- areturn
+			emit("do return stack", sp-1, " end")
 			sp = 0
 		end,
 
@@ -508,6 +619,7 @@ local function compile_method(class, analysis, mimpl)
 	-- constant pool.
 	
 	local wrapper = {
+		"local ffi = require('ffi') ",
 		"return function("
 	}
 

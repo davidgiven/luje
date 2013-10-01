@@ -263,17 +263,18 @@ local function loadclass(classdata)
 			return a
 		end,
 
-		["StackMapTable"] = function()
-			local stack_map_table_length = u2()
-			-- ignore this for now, as we don't use it and it's a pain to
-			-- parse
-			return {}
-		end,
-
 		["Deprecated"] = function()
 			return {};
 		end,
 	}
+
+	-- Ignore these for now, as we don't use it and it's a pain to
+	-- parse
+	--
+	for _, e in ipairs({"LocalVariableTypeTable", "StackMapTable", "Signature",
+			"Exceptions"}) do
+		attribute_reader[e] = function() return {} end
+	end
 
 	local function attribute()
 		local attribute_name_index = u2()

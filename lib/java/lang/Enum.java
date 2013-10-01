@@ -128,7 +128,7 @@ public abstract class Enum<E extends Enum<E>> implements Serializable,
      * @see java.lang.Comparable
      */
     public final int compareTo(E o) {
-        return ordinal - o.ordinal;
+        return ordinal - o.ordinal();
     }
 
     /**

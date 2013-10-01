@@ -36,26 +36,22 @@ local attribute_resolvers =
 		return class.Utf8Constants[attribute.sourcefile_index]
 	end,
 
-	["LineNumberTable"] = function(class, attribute)
-		return attribute
-	end,
-
-	["LocalVariableTable"] = function(class, attribute)
-		return attribute
-	end,
-
 	["Deprecated"] = function(class, attribute)
 		return true
-	end,
-
-	["StackMapTable"] = function(class, attribute)
-		return attribute
 	end,
 
 	["ConstantValue"] = function(class, attribute)
 		return attribute.value
 	end,
 }
+
+for _, e in ipairs({"LineNumberTable", "LocalVariableTable",
+		"LocalVariableTypeTable", "StackMapTable", "Signature",
+		"Exceptions"}) do
+	attribute_resolvers[e] = function(class, attribute)
+		return attribute
+	end
+end
 
 resolveattributes = function(class, attributes, a)
 	if not a then
@@ -78,6 +74,14 @@ end
 local parse_descriptor_token
 
 local descriptor_token_parser = {
+	[66] = function(d, pos) -- B
+		return 1, pos+1
+	end,
+
+	[67] = function(d, pos) -- C
+		return 1, pos+1
+	end,
+
 	[68] = function(d, pos) -- D
 		return 2, pos+1
 	end,
@@ -94,8 +98,16 @@ local descriptor_token_parser = {
 		return 2, pos+1
 	end,
 
+	[83] = function(d, pos) -- S
+		return 1, pos+1
+	end,
+
 	[86] = function(d, pos) -- V
 		return 0, pos
+	end,
+
+	[90] = function(d, pos) -- Z
+		return 1, pos+1
 	end,
 
 	[91] = function(d, pos) -- [
