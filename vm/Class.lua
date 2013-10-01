@@ -380,7 +380,7 @@ local function compile_method(class, analysis, mimpl)
 		end,
 
 		[0x61] = function() -- ladd
-			emit("stack", sp-4, " = stack", sp-4, " + stack", sp-2)
+			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " + stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
@@ -390,27 +390,27 @@ local function compile_method(class, analysis, mimpl)
 		end,
 
 		[0x64] = function() -- isub
-			emit("stack", sp-2, " = bit.tobit(stack", sp-2, " - stack", sp-1, ")")
+			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, " - stack", sp-1, "))")
 			sp = sp - 1
 		end,
 
 		[0x65] = function() -- lsub
-			emit("stack", sp-4, " = stack", sp-4, " - stack", sp-2)
+			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " - stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
 		[0x68] = function() -- imul
-			emit("stack", sp-2, " = stack", sp-2, " * stack", sp-1)
+			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', ffi.cast('int32_t', stack", sp-2, ") * ffi.cast('int32_t', stack", sp-1, ")))")
 			sp = sp - 1
 		end,
 
 		[0x69] = function() -- lmul
-			emit("stack", sp-4, " = stack", sp-4, " * stack", sp-2)
+			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " * stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
 		[0x6c] = function() -- idiv
-			emit("stack", sp-2, " = bit.tobit(stack", sp-2, " / stack", sp-1, ")")
+			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, " / stack", sp-1, "))")
 			sp = sp - 1
 		end,
 
@@ -420,7 +420,7 @@ local function compile_method(class, analysis, mimpl)
 		end,
 
 		[0x6d] = function() -- ldiv
-			emit("stack", sp-4, " = stack", sp-4, " / stack", sp-2)
+			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " / stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
@@ -437,7 +437,7 @@ local function compile_method(class, analysis, mimpl)
 		[0x84] = function() -- iinc
 			local var = u1()
 			local i = s1()
-			emit("local", var, " = bit.tobit(local", var, " + ", i, ")")
+			emit("local", var, " = tonumber(ffi.cast('int32_t', local", var, " + ", i, "))")
 		end,
 
 		[0x85] = function() -- i2l
@@ -451,7 +451,7 @@ local function compile_method(class, analysis, mimpl)
 		end,
 
 		[0x88] = function() -- l2i
-			emit("stack", sp-2, " = bit.tobit(tonumber(stack", sp-2, "))")
+			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, "))")
 			sp = sp - 1
 		end,
 

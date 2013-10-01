@@ -4,6 +4,7 @@
 -- New BSD License. Please see the COPYING file in the
 -- project root for the full text.
 
+local ffi = require("ffi")
 local Utils = require("Utils")
 local Cast = require("Cast")
 local dbg = Utils.Debug
@@ -93,7 +94,7 @@ local function loadclass(classdata)
 		end,
 
 		[3] = function() -- CONSTANT_Integer
-			return s4(), 1
+			return bit.tobit(s4()), 1
 		end,
 
 		[4] = function() -- CONSTANT_Float
@@ -101,7 +102,7 @@ local function loadclass(classdata)
 		end,
 
 		[5] = function() -- CONSTANT_Long
-			return s8(), 2
+			return ffi.cast("int64_t", s8()), 2
 		end,
 
 		[6] = function() -- CONSTANT_Double
