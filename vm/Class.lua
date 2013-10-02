@@ -318,6 +318,12 @@ local function compile_method(class, analysis, mimpl)
 			emit("local", var, " = stack", sp)
 		end,
 
+		[0x39] = function() -- dstore
+			local var = u1()
+			sp = sp - 2
+			emit("local", var, " = stack", sp)
+		end,
+
 		[0x3b] = function() -- istore_0
 			sp = sp - 1
 			emit("local0 = stack", sp)

@@ -10,6 +10,10 @@ local Runtime = require("Runtime")
 local ffi = require("ffi")
 
 Runtime.RegisterNativeMethod("java/lang/Math", "sqrt(D)D", math.sqrt)
+Runtime.RegisterNativeMethod("java/lang/Math", "sin(D)D", math.sin)
+Runtime.RegisterNativeMethod("java/lang/Math", "cos(D)D", math.cos)
+Runtime.RegisterNativeMethod("java/lang/Math", "tan(D)D", math.tan)
+Runtime.RegisterNativeMethod("java/lang/Math", "log(D)D", math.log)
 
 ffi.cdef([[
 	struct timeval
