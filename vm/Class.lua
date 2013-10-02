@@ -23,6 +23,8 @@ local ItoSI = Cast.ItoSI
 -- a callable function.
 
 local function compile_method(class, analysis, mimpl)
+	dbg("compiling: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
+
 	local bytecode = mimpl.Code.Bytecode
 	local pos = 0
 	local sp = 0
@@ -107,18 +109,49 @@ local function compile_method(class, analysis, mimpl)
 		emitnonl("nullcheck(", v, "); ")
 	end
 
+	-- Perform a method call.
+	
+	local function methodcall(f, self)
+		local numinparams = #f.InParams
+		local inparams = {}
+		if self then
+			inparams[#inparams+1] = self
+		end
+		for i = numinparams, 1, -1 do
+			local d = f.InParams[i]
+			sp = sp - d
+			inparams[#inparams+1] = "stack"..sp
+		end
+
+		emitnonl("(")
+		emitnonl(table_concat(inparams, ", "))
+		emitnonl(") ")
+	end
+
 	-- Emit the function prologue.
 	
 	emitnonl("function(")
 	local minlocals = 1
 	do
 		local first = true
+		
+		-- If this isn't a static method, local0 is always an implicit
+		-- parameter representing 'this'.
+
+		if not string_find(mimpl.AccessFlags, " static ") then
+			emitnonl("local0")
+			minlocals = 2
+			first = false
+		end
+
+		-- The rest of the parameters (might be empty).
+
 		for n, d in ipairs(mimpl.InParams) do
 			if not first then
 				emitnonl(", ")
 			end
 			first = false
-			emitnonl("local", (minlocals-1))
+			emitnonl("local", minlocals-1)
 			minlocals = minlocals + d
 		end
 	end
@@ -374,6 +407,21 @@ local function compile_method(class, analysis, mimpl)
 			emit("local3 = stack", sp)
 		end,
 
+		[0x4c] = function() -- astore_1
+			sp = sp - 1
+			emit("local1 = stack", sp)
+		end,
+
+		[0x57] = function() -- pop
+			sp = sp - 1
+			emit("-- pop")
+		end,
+
+		[0x59] = function() -- dup
+			sp = sp + 1
+			emit("stack", sp-1, " = stack", sp-2)
+		end,
+
 		[0x5c] = function() -- dup2
 			sp = sp + 2
 			emitnonl("stack", sp-2, " = stack", sp-4, " ")
@@ -547,22 +595,41 @@ local function compile_method(class, analysis, mimpl)
 			sp = 0
 		end,
 
+		[0xb2] = function() -- getstatic
+			local i = u2()
+			local f = analysis.RefConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f.Class))
+
+			emit("stack", sp, " = ", c, "['f_", f.Class, "::", f.Name, "']")
+			sp = sp + f.Size
+		end,
+
 		[0xb3] = function() -- putstatic
 			local i = u2()
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
 			sp = sp - f.Size
-			emit(c, ".fs_", f.Name, " = stack", sp)
+			emit(c, "['f_", f.Class, "::", f.Name, "'] = stack", sp)
 		end,
 
-		[0xb2] = function() -- getstatic
+		[0xb4] = function() -- getfield
 			local i = u2()
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
-			emit("stack", sp, " = ", c, ".fs_", f.Name)
+			sp = sp - 1
+			emit("stack", sp, " = stack", sp, "['f_", f.Class, '::', f.Name, "']")
 			sp = sp + f.Size
+		end,
+
+		[0xb5] = function() -- putfield
+			local i = u2()
+			local f = analysis.RefConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f.Class))
+
+			sp = sp - f.Size - 1
+			emit("stack", sp, "['f_", f.Class, '::', f.Name, "'] = stack", sp+1)
 		end,
 
 		[0xb6] = function() -- invokevirtual
@@ -570,8 +637,34 @@ local function compile_method(class, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
-			pretty.dump(f)
-			emit("-- invokevirtual")
+			local self = "stack"..(sp-1-f.Size)
+			emitnonl("do local r, e = ", self, "['m_", f.Name, f.Descriptor, "']")
+			methodcall(f, self)
+			sp = sp - 1
+
+			if (f.OutParams > 0) then
+				emitnonl("stack", sp, " = r ")
+				sp = sp + f.OutParams
+			end
+
+			emit("end")
+		end,
+
+		[0xb7] = function() -- invokespecial
+			local i = u2()
+			local f = analysis.RefConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f.Class))
+
+			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "']")
+			methodcall(f, "stack"..(sp-1-f.Size))
+			sp = sp - 1
+
+			if (f.OutParams > 0) then
+				emitnonl("stack", sp, " = r ")
+				sp = sp + f.OutParams
+			end
+
+			emit("end")
 		end,
 
 		[0xb8] = function() -- invokestatic
@@ -579,29 +672,35 @@ local function compile_method(class, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
-			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "'](")
-
-			local numinparams = #f.InParams
-			local inparams = {}
-			for n, d in ipairs(f.InParams) do
-				sp = sp - d
-				inparams[numinparams - n + 1] = "stack"..sp
-			end
-
-			emitnonl(table_concat(inparams, ", "))
-			emitnonl(") ")
+			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "']")
+			methodcall(f)
 
 			if (f.OutParams > 0) then
-				emitnonl("stack", sp, " = r")
+				emitnonl("stack", sp, " = r ")
 				sp = sp + f.OutParams
 			end
 
-			emit(" end")
+			emit("end")
+		end,
+
+		[0xbb] = function() -- new
+			local i = u2()
+			local f = analysis.ClassConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f))
+
+			emit("stack", sp, " = runtime.New(", c, ")")
+			sp = sp + 1
 		end,
 
 		[0xbe] = function() -- arraylength
 			nullcheck("stack"..(sp-1))
 			emit("stack", (sp-1), " = stack", (sp-1), ":length()")
+		end,
+
+		[0xc7] = function() -- ifnonnull
+			local delta = s2() - 3
+			emit("if (stack", sp-1, " ~= nil) then goto pc_", pos+delta, " end")
+			sp = sp - 1
 		end,
 	}
 
@@ -626,6 +725,7 @@ local function compile_method(class, analysis, mimpl)
 	
 	local wrapper = {
 		"local ffi = require('ffi') ",
+		"local runtime = require('Runtime') ",
 		"return function("
 	}
 
@@ -666,6 +766,14 @@ local function compile_native_method(class, analysis, mimpl)
 	return f
 end
 
+local function compile_nonstatic_method(class, analysis, mimpl)
+	if string_find(mimpl.AccessFlags, " native ") then
+		return compile_native_method(class, analysis, mimpl)
+	else
+		return compile_method(class, analysis, mimpl)
+	end
+end
+
 local function compile_static_method(class, analysis, mimpl)
 	if string_find(mimpl.AccessFlags, " native ") then
 		return compile_native_method(class, analysis, mimpl)
@@ -676,17 +784,43 @@ end
 
 return function(classloader)
 	local analysis
+	local instancevars = {}
+	local superclass
 
 	local c
 	c = {
 		Init = function(self, a)
 			analysis = a
 
-			-- Create any fields defined by this class.
+			-- Initialise static fields.
 
-			for name, field in pairs(a.Fields) do
-				dbg("warning: field ", name, " initialised to 0")
-				c["fs_"..name] = 0
+			for _, f in pairs(analysis.Fields) do
+				local value = 0
+				if string_find(f.Descriptor, "^[]L]") then
+					value = nil
+				end
+
+				if string_find(f.AccessFlags, " static ") then
+					rawset(c, "f_"..analysis.ThisClass.."::"..f.Name, value)
+				else
+					instancevars["f_"..analysis.ThisClass.."::"..f.Name] = value
+				end
+			end
+
+			-- Load the superclass.
+
+			if analysis.SuperClass then
+				superclass = classloader:LoadClass(analysis.SuperClass)
+			end
+		end,
+
+		InitInstance = function(self)
+			for k, v in pairs(instancevars) do
+				rawset(self, k, v)
+			end
+
+			if superclass then
+				superclass:InitInstance(self)
 			end
 		end,
 
@@ -695,12 +829,23 @@ return function(classloader)
 		end,
 
 		FindStaticMethod = function(self, n)
-			dbg("looking for ", n)
-
 			local mimpl = analysis.Methods[n]
-			m = compile_static_method(self, analysis, mimpl)
-			return m
-		end
+			if not mimpl then
+				return nil
+			end
+			return compile_static_method(self, analysis, mimpl)
+		end,
+
+		FindMethod = function(self, n)
+			local mimpl = analysis.Methods[n]
+			if not mimpl then
+				if superclass then
+					return superclass:FindMethod(n)
+				end
+				return nil
+			end
+			return compile_nonstatic_method(self, analysis, mimpl)
+		end,
 	}
 
 	setmetatable(c,
@@ -709,9 +854,9 @@ return function(classloader)
 				local _, _, n = string_find(k, "m_(.*)")
 				Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
 				local m = c:FindStaticMethod(n)
-				c[k] = m
+				rawset(c, k, m)
 				return m
-			end
+			end,
 		}
 	)
 

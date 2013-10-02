@@ -20,6 +20,27 @@ return {
 
 	FindNativeMethod = function(class, name)
 		return native_methods[class.." "..name]
-	end
+	end,
+
+	New = function(classo)
+		local o = {
+			Class = classo
+		}
+		classo:InitInstance()
+
+		setmetatable(o,
+			{
+				__index = function(self, k)
+					local _, _, n = string_find(k, "m_(.*)")
+					Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
+					local m = classo:FindMethod(n)
+					rawset(o, k, m)
+					return m
+				end,
+			}
+		)
+
+		return o
+	end,
 }
 

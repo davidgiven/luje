@@ -18,11 +18,19 @@ local function LoadClass(self, name)
 		return c
 	end
 
+	dbg("loading: ", name)
 	local s = Utils.LoadFile(path..name..".class")
 	local t = classanalyser(s)
 	c = Class(self)
 	cache[name] = c
 	c:Init(t)
+
+	-- Call the static constructor for the class.
+	
+	local m = c["m_<clinit>()V"]
+	if m then 
+		m()
+	end
 	return c
 end
 

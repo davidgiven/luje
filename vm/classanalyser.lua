@@ -47,7 +47,7 @@ local attribute_resolvers =
 
 for _, e in ipairs({"LineNumberTable", "LocalVariableTable",
 		"LocalVariableTypeTable", "StackMapTable", "Signature",
-		"Exceptions"}) do
+		"Exceptions", "InnerClasses"}) do
 	attribute_resolvers[e] = function(class, attribute)
 		return attribute
 	end
@@ -189,10 +189,10 @@ local function analyseclass(classdata)
 	setmetatable(ClassConstants,
 		{
 			__index = function(self, k)
-				local ci = impl.constants[k].name_index
-				if (ci == 0) then
+				if (k == 0) then
 					return nil
 				end
+				local ci = impl.constants[k].name_index
 				local s = Utf8Constants[ci]
 				self[k] = s
 				return s
@@ -206,6 +206,7 @@ local function analyseclass(classdata)
 			__index = function(self, k)
 				local c = impl.constants[k]
 				local n = impl.constants[c.name_and_type_index]
+				Utils.Assert(n, "index=", k)
 
 				local f = {}
 				f.Name = Utf8Constants[n.name_index]
@@ -215,6 +216,12 @@ local function analyseclass(classdata)
 				if (string_byte(f.Descriptor, 1) == 40) then
 					f.InParams = parse_descriptor_input_params(f.Descriptor)
 					f.OutParams = parse_descriptor_output_params(f.Descriptor)
+					
+					local s = 0
+					for _, p in ipairs(f.InParams) do
+						s = s + p
+					end
+					f.Size = s
 				else
 					f.Size = (parse_descriptor_token(f.Descriptor, 1))
 				end

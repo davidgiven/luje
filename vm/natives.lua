@@ -33,3 +33,21 @@ Runtime.RegisterNativeMethod("java/lang/System", "currentTimeMillis()J",
 			ffi.cast("int64_t", timeval.tv_usec) / 1000LL
 	end
 )
+
+Runtime.RegisterNativeMethod("java/io/FileDescriptor", "getStdInDescriptor()J",
+	function() return 0 end)
+Runtime.RegisterNativeMethod("java/io/FileDescriptor", "getStdOutDescriptor()J",
+	function() return 1 end)
+Runtime.RegisterNativeMethod("java/io/FileDescriptor", "getStdErrDescriptor()J",
+	function() return 2 end)
+Runtime.RegisterNativeMethod("java/io/FileDescriptor", "oneTimeInitialization()V",
+	function() end)
+
+Runtime.RegisterNativeMethod("org/apache/harmony/luni/platform/OSFileSystem", "oneTimeInitializationImpl()V",
+	function() end)
+
+Runtime.RegisterNativeMethod("org/apache/harmony/luni/platform/OSMemory", "getPointerSizeImpl()I",
+	function() return 8 end)
+Runtime.RegisterNativeMethod("org/apache/harmony/luni/platform/OSMemory", "isLittleEndianImpl()Z",
+	function() return 1 end)
+
