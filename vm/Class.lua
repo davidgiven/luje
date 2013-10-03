@@ -219,6 +219,15 @@ local function compile_method(class, analysis, mimpl)
 		end
 	end
 	
+	local function ifcmp_op(cmp)
+		return function()
+			local delta = s2() - 3
+			sp = sp - 2
+			emit("if (stack", sp, " ", cmp, " stack", sp+1, ") then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
+		end
+	end
+
 	-- This table expands all the opcodes.
 
 	local opcodemap = {
@@ -271,6 +280,12 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 2
 		end,
 
+		[0x15] = function() -- iload
+			local i = u1()
+			emit("stack", sp, " = local", i)
+			sp = sp + 1
+		end,
+
 		[0x16] = function() -- lload
 			local i = u1()
 			emit("stack", sp, " = local", i)
@@ -281,6 +296,12 @@ local function compile_method(class, analysis, mimpl)
 			local i = u1()
 			emit("stack", sp, " = local", i)
 			sp = sp + 2
+		end,
+
+		[0x19] = function() -- aload
+			local i = u1()
+			emit("stack", sp, " = local", i)
+			sp = sp + 1
 		end,
 
 		[0x1a] = localload_op(1, 0), -- iload_0
@@ -331,6 +352,12 @@ local function compile_method(class, analysis, mimpl)
 			emit("local", var, " = stack", sp)
 		end,
 
+		[0x3a] = function() -- astore
+			local var = u1()
+			sp = sp - 1
+			emit("local", var, " = stack", sp)
+		end,
+
 		[0x3b] = localstore_op(1, 0), -- istore_0
 		[0x3c] = localstore_op(1, 1), -- istore_1
 		[0x3d] = localstore_op(1, 2), -- istore_2
@@ -365,6 +392,12 @@ local function compile_method(class, analysis, mimpl)
 		[0x59] = function() -- dup
 			sp = sp + 1
 			emit("stack", sp-1, " = stack", sp-2)
+		end,
+
+		[0x5a] = function() -- dup_x1
+			sp = sp - 2
+			emit("do local v2, v1 = stack", sp, ", stack", sp+1, " stack", sp, "=v1 stack", sp+1, "=v2 stack", sp+2, "=v1 end")
+			sp = sp + 3
 		end,
 
 		[0x5c] = function() -- dup2
@@ -438,8 +471,18 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 2
 		end,
 
+		[0x7a] = function() -- ishr
+			emit("stack", sp-2, " = bit.arshift(stack", sp-2, ", stack", sp-1, ")")
+			sp = sp - 1
+		end,
+
 		[0x7e] = function() -- iand
 			emit("stack", sp-2, " = bit.band(stack", sp-2, ", stack", sp-1, ")")
+			sp = sp - 1
+		end,
+
+		[0x80] = function() -- ior
+			emit("stack", sp-2, " = bit.bor(stack", sp-2, ", stack", sp-1, ")")
 			sp = sp - 1
 		end,
 
@@ -470,6 +513,10 @@ local function compile_method(class, analysis, mimpl)
 
 		[0x8a] = function() -- l2d
 			emit("stack", sp-2, " = tonumber(stack", sp-2, ")")
+		end,
+
+		[0x8b] = function() -- f2i
+			emit("stack", sp-1, " = tonumber(ffi.cast('int32_t', stack", sp-1, "))")
 		end,
 
 		[0x91] = function() -- i2b
@@ -548,12 +595,12 @@ local function compile_method(class, analysis, mimpl)
 			setstack(pos+delta, sp)
 		end,
 
-		[0xa2] = function() -- if_icmpge
-			local delta = s2() - 3
-			sp = sp - 2
-			emit("if (stack", sp, " >= stack", sp+1, ") then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
-		end,
+		[0x9f] = ifcmp_op("=="), -- if_icmpeq
+		[0xa0] = ifcmp_op("~="), -- if_icmpne
+		[0xa1] = ifcmp_op("<"), -- if_icmplt
+		[0xa2] = ifcmp_op(">="), -- if_icmpge
+		[0xa3] = ifcmp_op(">"), -- if_icmpgt
+		[0xa4] = ifcmp_op("<="), -- if_icmple
 
 		[0xa7] = function() -- goto
 			local delta = s2() - 3
@@ -709,6 +756,13 @@ local function compile_method(class, analysis, mimpl)
 			emit("stack", sp-1, " = runtime.NewArray(", i, ", stack", sp-1, ")")
 		end,
 
+		[0xbd] = function() -- anewarray
+			local i = u2()
+			local f = analysis.ClassConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f))
+			emit("stack", sp-1, " = runtime.NewAArray(", c, ", stack", sp-1, ")")
+		end,
+
 		[0xbe] = function() -- arraylength
 			nullcheck("stack"..(sp-1))
 			emit("stack", (sp-1), " = stack", (sp-1), ":Length()")
@@ -718,6 +772,13 @@ local function compile_method(class, analysis, mimpl)
 			local o = "stack"..(sp-1)
 			emit("Runtime.Throw(", o, ")")
 			sp = 0
+		end,
+
+		[0xc6] = function() -- ifnull
+			local delta = s2() - 3
+			sp = sp - 1
+			emit("if (stack", sp, " == nil) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0xc7] = function() -- ifnonnull
@@ -876,10 +937,14 @@ return function(classloader)
 		{
 			__index = function(self, k)
 				local _, _, n = string_find(k, "m_(.*)")
-				Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
-				local m = c:FindStaticMethod(n)
-				rawset(c, k, m)
-				return m
+				if n then
+					Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
+					local m = c:FindStaticMethod(n)
+					rawset(c, k, m)
+					return m
+				else
+					return nil
+				end
 			end,
 		}
 	)

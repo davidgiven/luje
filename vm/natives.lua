@@ -9,6 +9,12 @@ local dbg = Utils.Debug
 local Runtime = require("Runtime")
 local ffi = require("ffi")
 
+Runtime.RegisterNativeMethod("java/lang/Object", "hashCode()I",
+	function(self)
+		return self:Hash()
+	end
+)
+
 Runtime.RegisterNativeMethod("java/lang/Math", "sqrt(D)D", math.sqrt)
 Runtime.RegisterNativeMethod("java/lang/Math", "sin(D)D", math.sin)
 Runtime.RegisterNativeMethod("java/lang/Math", "cos(D)D", math.cos)

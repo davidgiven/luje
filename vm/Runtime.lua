@@ -13,6 +13,7 @@ local string_find = string.find
 local table_concat = table.concat
 
 local native_methods = {}
+local globalhash = 0
 
 local primitivetypes =
 {
@@ -36,8 +37,12 @@ return {
 	end,
 
 	New = function(classo)
+		local hash = globalhash
+		globalhash = globalhash + 1
+
 		local o = {
-			Class = classo
+			Class = classo,
+			Hash = function() return hash end,
 		}
 		classo:InitInstance()
 
@@ -45,10 +50,14 @@ return {
 			{
 				__index = function(self, k)
 					local _, _, n = string_find(k, "m_(.*)")
-					Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
-					local m = classo:FindMethod(n)
-					rawset(o, k, m)
-					return m
+					if n then
+						Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
+						local m = classo:FindMethod(n)
+						rawset(o, k, m)
+						return m
+					else
+						return nil
+					end
 				end,
 			}
 		)
@@ -61,6 +70,9 @@ return {
 		Utils.Assert(t, "unsupported primitive kind ", kind)
 
 		local store = ffi.new(t.."["..tonumber(length).."]")
+
+		local hash = globalhash
+		globalhash = globalhash + 1
 
 		return {
 			ArrayPut = function(self, index, value)
@@ -75,6 +87,37 @@ return {
 				
 			Length = function(self)
 				return length
+			end,
+
+			Hash = function()
+				return hash
+			end
+		}
+	end,
+
+	NewAArray = function(classo, length)
+		local store = {}
+
+		local hash = globalhash
+		globalhash = globalhash + 1
+
+		return {
+			ArrayPut = function(self, index, value)
+				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+				store[index] = value
+			end,
+
+			ArrayGet = function(self, index)
+				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+				return store[index]
+			end,
+				
+			Length = function(self)
+				return length
+			end,
+
+			Hash = function()
+				return hash
 			end
 		}
 	end
