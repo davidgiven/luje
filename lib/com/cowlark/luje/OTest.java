@@ -14,15 +14,10 @@ public class OTest
 	public static void main(String[] argv)
 	{
 		//result = many(1, 2, 3, 4);
-		LinkedList<Integer> list = new LinkedList<Integer>();
-		result = 0;
+		HashMap<Integer, Integer> map = new HashMap<Integer, Integer>();
 		for (int i=0; i<1000; i++)
-		{
-			list.add(i);
-			result += i;
-		}
+			map.put(i, i);
 
-		for (int i : list)
-			result -= i;
+		result = map.get(55);
 	}
 }

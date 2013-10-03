@@ -482,6 +482,11 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 2
 		end,
 
+		[0x78] = function() -- ishl
+			emit("stack", sp-2, " = bit.lshift(stack", sp-2, ", stack", sp-1, ")")
+			sp = sp - 1
+		end,
+
 		[0x7a] = function() -- ishr
 			emit("stack", sp-2, " = bit.arshift(stack", sp-2, ", stack", sp-1, ")")
 			sp = sp - 1
