@@ -1,0 +1,54 @@
+<title>a pure Lua JVM</title>
+
+<h3>What is it?</h3>
+
+luje is an experimental (read: toy) Java virtual machine written in pure
+Lua. It works by compiling Java bytecode into Lua scripts on-the-fly and
+then running them using Mike Pall's <a href="http://luajit.org/">LuaJIT
+2</a>. The result is an extremely fast but incredibly lightweight Java
+virtual machine which can outperform Sun's Hotspot in some situations.
+
+<h3>What's new?</h3>
+
+<b>2013-09-02</b>: Placeholder website goes live.
+
+<h3>Where can I get it?</h3>
+
+It's currently unreleased, but if you're desperate you can download
+an <a href="../../../tarball/luje-tip.tar.gz?uuid=tip">the latest version
+from the VCS</a>. This is not guaranteed to work, or even to build. 
+
+Another way of getting the version under development is by
+checking out the source repository using <a href="http://fossil-scm.org">the
+Fossil DVCS</a>. Use the following commands:
+
+<verbatim>fossil clone http://cowlark.com/luje luje.fossil
+mkdir calculon
+cd calculon
+fossil open ../calculon.fossil
+</verbatim>
+
+You will need LuaJIT 2; it doesn't work on stock Lua, or on LuaJIT 1.
+
+<h3>How do I use it?</h3>
+
+Right now, don't --- it's not suitable for public consumption.
+
+<h3>Who wrote it?</h3>
+
+I, <a href="http://cowlark.com">David Given</a>, wrote it. Got any comments,
+criticism, cake? Send it to <a href="mailto:dg@cowlark.com">dg@cowlark.com</a>.
+If there's interest, I'll set up a mailing list.
+
+<h3>What's the license?</h3>
+
+luje is distributable under the terms of the <a href="copying.wiki">Simplified
+BSD License</a>. It also contains code derived from the Apache Harmony project,
+which is available under the Apache 2.0 license.
+
+<h2 class='comments-title'>Comments on this page</h2>
+<table class='comments' border='0'><tr>
+<td id='commentator-viewer'></td>
+<td id='commentator-poster'></td>
+</tr></table>
+
