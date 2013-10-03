@@ -17,15 +17,44 @@ local globalhash = 0
 
 local primitivetypes =
 {
-	[4] = "bool",
-	[5] = "uint16_t",
-	[6] = "float",
-	[7] = "double",
-	[8] = "uint8_t",
-	[9] = "int16_t",
-	[10] = "int32_t",
-	[11] = "int64_t"
+	[4] = {"Z", "bool"},
+	[5] = {"C", "uint16_t"},
+	[6] = {"F", "float"},
+	[7] = {"D", "double"},
+	[8] = {"B", "uint8_t"},
+	[9] = {"S", "int16_t"},
+	[10] = {"I", "int32_t"},
+	[11] = {"J", "int64_t"}
 }
+
+local function New(classo)
+	local hash = globalhash
+	globalhash = globalhash + 1
+
+	local o = {
+		Class = function() return classo end,
+		Hash = function() return hash end,
+	}
+	classo:InitInstance(o)
+
+	setmetatable(o,
+		{
+			__index = function(self, k)
+				local _, _, n = string_find(k, "m_(.*)")
+				if n then
+					Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
+					local m = classo:FindMethod(n)
+					rawset(o, k, m)
+					return m
+				else
+					return nil
+				end
+			end,
+		}
+	)
+
+	return o
+end
 
 return {
 	RegisterNativeMethod = function(class, name, func)
@@ -36,90 +65,72 @@ return {
 		return native_methods[class.." "..name]
 	end,
 
-	New = function(classo)
-		local hash = globalhash
-		globalhash = globalhash + 1
+	New = New,
 
-		local o = {
-			Class = classo,
-			Hash = function() return hash end,
-		}
-		classo:InitInstance()
+	NewArray = function(kind, length, callerclasso)
+		local k = primitivetypes[kind]
+		Utils.Assert(k, "unsupported primitive kind ", kind)
+		local typechar, impl = unpack(k)
 
-		setmetatable(o,
-			{
-				__index = function(self, k)
-					local _, _, n = string_find(k, "m_(.*)")
-					if n then
-						Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
-						local m = classo:FindMethod(n)
-						rawset(o, k, m)
-						return m
-					else
-						return nil
-					end
-				end,
-			}
-		)
+		local classname = "["..typechar
+		local classo = callerclasso:ClassLoader():LoadInternalClass(classname)
+		local object = New(classo)
 
-		return o
-	end,
+		local store = ffi.new(impl.."["..tonumber(length).."]")
 
-	NewArray = function(kind, length)
-		local t = primitivetypes[kind]
-		Utils.Assert(t, "unsupported primitive kind ", kind)
+		object.ArrayPut = function(self, index, value)
+			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+			store[index] = value
+		end
 
-		local store = ffi.new(t.."["..tonumber(length).."]")
-
-		local hash = globalhash
-		globalhash = globalhash + 1
-
-		return {
-			ArrayPut = function(self, index, value)
-				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
-				store[index] = value
-			end,
-
-			ArrayGet = function(self, index)
-				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
-				return store[index]
-			end,
+		object.ArrayGet = function(self, index)
+			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+			return store[index]
+		end
 				
-			Length = function(self)
-				return length
-			end,
+		object.Length = function(self)
+			return length
+		end
 
-			Hash = function()
-				return hash
-			end
-		}
+		return object
 	end,
 
-	NewAArray = function(classo, length)
+	NewAArray = function(classo, length, callerclasso)
+		local classname = "[L"..classo:ThisClass()..";"
+		local arrayclasso = callerclasso:ClassLoader():LoadInternalClass(classname)
+		local object = New(arrayclasso)
+
 		local store = {}
 
-		local hash = globalhash
-		globalhash = globalhash + 1
+		object.ArrayPut = function(self, index, value)
+			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+			store[index] = value
+		end
 
-		return {
-			ArrayPut = function(self, index, value)
-				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
-				store[index] = value
-			end,
+		object.ArrayGet = function(self, index)
+			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+			return store[index]
+		end
+			
+		object.Length = function(self)
+			return length
+		end
 
-			ArrayGet = function(self, index)
-				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
-				return store[index]
-			end,
-				
-			Length = function(self)
-				return length
-			end,
+		return object
+	end,
 
-			Hash = function()
-				return hash
+	CheckCast = function(o, classo)
+		if not o then
+			return
+		end
+		local c = o:Class()
+		while c do
+			if (c == classo) then
+				return
 			end
-		}
+			c = c:SuperClass()
+		end
+		Utils.Throw("bad cast")
 	end
 }
 

@@ -129,10 +129,11 @@ local function compile_method(class, analysis, mimpl)
 		if self then
 			inparams[#inparams+1] = self
 		end
+		local o = #inparams
 		for i = numinparams, 1, -1 do
 			local d = f.InParams[i]
 			sp = sp - d
-			inparams[#inparams+1] = "stack"..sp
+			inparams[o+i] = "stack"..sp
 		end
 
 		emitnonl("(")
@@ -191,7 +192,7 @@ local function compile_method(class, analysis, mimpl)
 	local function arraystore_op(size)
 		return function()
 			sp = sp - (2+size)
-			nullcheck("stack", sp)
+			nullcheck("stack"..sp)
 			emit("stack", sp, ":ArrayPut(stack", sp+1, ", stack", sp+2, ")")
 		end
 	end
@@ -199,7 +200,7 @@ local function compile_method(class, analysis, mimpl)
 	local function arrayload_op(size)
 		return function()
 			sp = sp - 2
-			nullcheck("stack", sp)
+			nullcheck("stack"..sp)
 			emit("stack", sp, " = stack", sp, ":ArrayGet(stack", sp+1, ")")
 			sp = sp + size
 		end
@@ -265,6 +266,16 @@ local function compile_method(class, analysis, mimpl)
 
 		[0x12] = function() -- ldc
 			local i = u1()
+			local c = analysis.SimpleConstants[i]
+			if (type(c) == "table") then
+				c = constant(c)
+			end
+			emit("stack", sp, " = ", c)
+			sp = sp + 1
+		end,
+
+		[0x13] = function() -- ldc
+			local i = u2()
 			local c = analysis.SimpleConstants[i]
 			if (type(c) == "table") then
 				c = constant(c)
@@ -601,6 +612,8 @@ local function compile_method(class, analysis, mimpl)
 		[0xa2] = ifcmp_op(">="), -- if_icmpge
 		[0xa3] = ifcmp_op(">"), -- if_icmpgt
 		[0xa4] = ifcmp_op("<="), -- if_icmple
+		[0xa5] = ifcmp_op("=="), -- if_acmpeq
+		[0xa6] = ifcmp_op("~="), -- if_acmpne
 
 		[0xa7] = function() -- goto
 			local delta = s2() - 3
@@ -656,8 +669,8 @@ local function compile_method(class, analysis, mimpl)
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
 			sp = sp - 1
-			nullcheck("stack", sp)
-			emit("stack", sp, " = stack", sp, "['f_", f.Class, '::', f.Name, "']")
+			nullcheck("stack"..sp)
+			emit("stack", sp, " = stack", sp, "['f_", f.Name, "']")
 			sp = sp + f.Size
 		end,
 
@@ -667,8 +680,8 @@ local function compile_method(class, analysis, mimpl)
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
 			sp = sp - f.Size - 1
-			nullcheck("stack", sp)
-			emit("stack", sp, "['f_", f.Class, '::', f.Name, "'] = stack", sp+1)
+			nullcheck("stack"..sp)
+			emit("stack", sp, "['f_", f.Name, "'] = stack", sp+1)
 		end,
 
 		[0xb6] = function() -- invokevirtual
@@ -725,6 +738,7 @@ local function compile_method(class, analysis, mimpl)
 
 		[0xb9] = function() -- invokeinterface
 			local i = u2()
+			u2() -- read and ingore two bytes
 			local f = analysis.RefConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
@@ -753,14 +767,15 @@ local function compile_method(class, analysis, mimpl)
 
 		[0xbc] = function() -- newarray
 			local i = u1()
-			emit("stack", sp-1, " = runtime.NewArray(", i, ", stack", sp-1, ")")
+			local c = constant(class)
+			emit("stack", sp-1, " = runtime.NewArray(", i, ", stack", sp-1, ", ", c, ")")
 		end,
 
 		[0xbd] = function() -- anewarray
 			local i = u2()
 			local f = analysis.ClassConstants[i]
 			local c = constant(class:ClassLoader():LoadClass(f))
-			emit("stack", sp-1, " = runtime.NewAArray(", c, ", stack", sp-1, ")")
+			emit("stack", sp-1, " = runtime.NewAArray(", c, ", stack", sp-1, ", ", constant(class), ")")
 		end,
 
 		[0xbe] = function() -- arraylength
@@ -772,6 +787,15 @@ local function compile_method(class, analysis, mimpl)
 			local o = "stack"..(sp-1)
 			emit("Runtime.Throw(", o, ")")
 			sp = 0
+		end,
+
+		[0xc0] = function() -- checkcast
+			local i = u2()
+			local f = analysis.ClassConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f))
+
+			local o = "stack"..(sp-1)
+			emit("runtime.CheckCast(", o, ", ", c, ")")
 		end,
 
 		[0xc6] = function() -- ifnull
@@ -832,7 +856,8 @@ local function compile_method(class, analysis, mimpl)
 	-- Compile it.
 	
 	dbg(table_concat(wrapper))
-	local chunk, e = load(table_concat(wrapper))
+	local chunk, e = load(table_concat(wrapper),
+		analysis.ThisClass.."::"..mimpl.Name..mimpl.Descriptor)
 	Utils.Check(e, "compilation failed")
 
 	-- Now actually call the constructor, with the constants, to produce the
@@ -870,6 +895,7 @@ end
 return function(classloader)
 	local analysis
 	local instancevars = {}
+	local instancemethodcache = {}
 	local superclass
 
 	local c
@@ -888,7 +914,7 @@ return function(classloader)
 				if string_find(f.AccessFlags, " static ") then
 					rawset(c, "f_"..analysis.ThisClass.."::"..f.Name, value)
 				else
-					instancevars["f_"..analysis.ThisClass.."::"..f.Name] = value
+					instancevars["f_"..f.Name] = value
 				end
 			end
 
@@ -899,13 +925,21 @@ return function(classloader)
 			end
 		end,
 
-		InitInstance = function(self)
+		ThisClass = function(self)
+			return analysis.ThisClass
+		end,
+
+		SuperClass = function(self)
+			return superclass
+		end,
+
+		InitInstance = function(self, o)
 			for k, v in pairs(instancevars) do
-				rawset(self, k, v)
+				rawset(o, k, v)
 			end
 
 			if superclass then
-				superclass:InitInstance(self)
+				superclass:InitInstance(o)
 			end
 		end,
 
@@ -922,14 +956,17 @@ return function(classloader)
 		end,
 
 		FindMethod = function(self, n)
-			local mimpl = analysis.Methods[n]
-			if not mimpl then
-				if superclass then
-					return superclass:FindMethod(n)
+			if not instancemethodcache[n] then
+				local mimpl = analysis.Methods[n]
+				if not mimpl then
+					if superclass then
+						return superclass:FindMethod(n)
+					end
+					return nil
 				end
-				return nil
+				instancemethodcache[n] = compile_nonstatic_method(self, analysis, mimpl)
 			end
-			return compile_nonstatic_method(self, analysis, mimpl)
+			return instancemethodcache[n]
 		end,
 	}
 

@@ -8,12 +8,57 @@ local Utils = require("Utils")
 local dbg = Utils.Debug
 local Runtime = require("Runtime")
 local ffi = require("ffi")
+local string_find = string.find
 
 Runtime.RegisterNativeMethod("java/lang/Object", "hashCode()I",
 	function(self)
 		return self:Hash()
 	end
 )
+
+--- Class management --------------------------------------------------------
+
+local classobjects = {}
+local function getclassfor(classo)
+	if not classobjects[classo] then
+		local c = classo:ClassLoader():LoadClass("java/lang/Class")
+		local o = Runtime.New(c)
+		o.forClass = classo
+		classobjects[classo] = o
+	end
+	return classobjects[classo]
+end
+
+Runtime.RegisterNativeMethod("java/lang/Object", "getClass()Ljava/lang/Class;",
+	function(self)
+		local classo = self:Class()
+		return getclassfor(classo)
+	end
+)
+
+Runtime.RegisterNativeMethod("java/lang/Class", "getComponentType()Ljava/lang/Class;",
+	function(self)
+		local classo = self.forClass
+		local n = classo:ThisClass()
+		local a, b = string_find(n, "^(.)(.*)$")
+		if (a == "[") then
+			local c = classo:ClassLoader():LoadInternalClass(b)
+			return getclassfor(c)
+		else
+			return nil
+		end
+	end
+)
+
+Runtime.RegisterNativeMethod("java/lang/Class", "isArray()Z",
+	function(self)
+		local classo = self.forClass
+		local n = classo:ThisClass()
+		return not not string_find(n, "^%[")
+	end
+)
+
+--- Maths -------------------------------------------------------------------
 
 Runtime.RegisterNativeMethod("java/lang/Math", "sqrt(D)D", math.sqrt)
 Runtime.RegisterNativeMethod("java/lang/Math", "sin(D)D", math.sin)

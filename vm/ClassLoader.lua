@@ -34,6 +34,27 @@ local function LoadClass(self, name)
 	return c
 end
 
+local function LoadInternalClass(self, name)
+	local c = cache[name]
+	if c then
+		return c
+	end
+
+	dbg("loading: ", name)
+	local t = {
+		ThisClass = name,
+		SuperClass = "java/lang/Class",
+		Fields = {},
+		Methods = {},
+	}
+	c = Class(self)
+	cache[name] = c
+	c:Init(t)
+
+	return c
+end
+
 return {
-	LoadClass = LoadClass
+	LoadClass = LoadClass,
+	LoadInternalClass = LoadInternalClass
 }
