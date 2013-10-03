@@ -1,29 +1,15 @@
 package com.cowlark.luje;
 
+import java.util.*;
+
 public class OTest
 {
 	static int result;
 
-	public static class TestSuper
-	{
-		int value()
-		{
-			return 1;
-		}
-	}
-
-	public static class TestSub extends TestSuper
-	{
-		int value()
-		{
-			return 2;
-		}
-	}
-
-
 	public static void main(String[] argv)
 	{
-		TestSub o = new TestSub();
-		result = o.value();
+		int[] array = new int[10000];
+		for (int i=0; i<array.length; i++)
+			array[i] = array[i]*array[i];
 	}
 }

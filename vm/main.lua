@@ -15,7 +15,7 @@ local pretty = require("pl.pretty")
 
 require("natives")
 
-local t = ClassLoader:LoadClass("com/cowlark/luje/Main")
+local t = ClassLoader:LoadClass("com/cowlark/luje/OTest")
 local m = t["m_main([Ljava/lang/String;)V"]
 Utils.Assert(m, "this isn't a main class")
 local r = m(t, nil)

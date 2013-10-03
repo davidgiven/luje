@@ -4,6 +4,7 @@
 -- New BSD License. Please see the COPYING file in the
 -- project root for the full text.
 
+local ffi = require("ffi")
 local Utils = require("Utils")
 local dbg = Utils.Debug
 local pretty = require("pl.pretty")
@@ -12,6 +13,18 @@ local string_find = string.find
 local table_concat = table.concat
 
 local native_methods = {}
+
+local primitivetypes =
+{
+	[4] = "bool",
+	[5] = "uint16_t",
+	[6] = "float",
+	[7] = "double",
+	[8] = "uint8_t",
+	[9] = "int16_t",
+	[10] = "int32_t",
+	[11] = "int64_t"
+}
 
 return {
 	RegisterNativeMethod = function(class, name, func)
@@ -42,5 +55,28 @@ return {
 
 		return o
 	end,
+
+	NewArray = function(kind, length)
+		local t = primitivetypes[kind]
+		Utils.Assert(t, "unsupported primitive kind ", kind)
+
+		local store = ffi.new(t.."["..tonumber(length).."]")
+
+		return {
+			ArrayPut = function(self, index, value)
+				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+				store[index] = value
+			end,
+
+			ArrayGet = function(self, index)
+				Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+				return store[index]
+			end,
+				
+			Length = function(self)
+				return length
+			end
+		}
+	end
 }
 

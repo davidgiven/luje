@@ -68,9 +68,21 @@ local function compile_method(class, analysis, mimpl)
 		if (csp == nil) then
 			stacksize[pc] = sp
 		else
-			if (csp ~= sp) then
-				Utils.Throw("stack mismatch (is currently "..sp..", but should be "..csp)
+			if (sp == nil) then
+				sp = csp
+			elseif (csp ~= sp) then
+				Utils.Throw("stack mismatch (address "..pc.." is currently "..csp..", but should be "..sp..")")
 			end
+		end
+	end
+
+	local function setstack(pc, newsp)
+		if stacksize[pc] then
+			if (stacksize[pc] ~= newsp) then
+				Utils.Throw("stack mismatch in target (address "..pc.." is currently "..stacksize[pc]..", but should be "..newsp..")")
+			end
+		else
+			stacksize[pc] = newsp
 		end
 	end
 
@@ -106,7 +118,7 @@ local function compile_method(class, analysis, mimpl)
 	-- Emit a check for null for the specified variable.
 	
 	local function nullcheck(v)
-		emitnonl("nullcheck(", v, "); ")
+		emitnonl("do local nullcheck = ", v, " end ")
 	end
 
 	-- Perform a method call.
@@ -167,72 +179,78 @@ local function compile_method(class, analysis, mimpl)
 		emit("local local", i-1)
 	end
 
+	-- Common opcodes.
+	
+	local function pushconst_op(size, value)
+		return function()
+			emit("stack", sp, " = ", value)
+			sp = sp + size
+		end
+	end
+
+	local function arraystore_op(size)
+		return function()
+			sp = sp - (2+size)
+			nullcheck("stack", sp)
+			emit("stack", sp, ":ArrayPut(stack", sp+1, ", stack", sp+2, ")")
+		end
+	end
+
+	local function arrayload_op(size)
+		return function()
+			sp = sp - 2
+			nullcheck("stack", sp)
+			emit("stack", sp, " = stack", sp, ":ArrayGet(stack", sp+1, ")")
+			sp = sp + size
+		end
+	end
+
+	local function localstore_op(size, index)
+		return function()
+			sp = sp - size
+			emit("local", index, " = stack", sp)
+		end
+	end
+
+	local function localload_op(size, index)
+		return function()
+			emit("stack", sp, " = local", index)
+			sp = sp + size
+		end
+	end
+	
 	-- This table expands all the opcodes.
 
 	local opcodemap = {
-		[0x01] = function() -- aconst_null
-			emit("stack", sp, " = nil")
-			sp = sp + 1
+		[0x00] = function() -- nop
+			emit("-- nop")
 		end,
 
-		[0x02] = function() -- iconst_m1
-			emit("stack", sp, " = -1")
-			sp = sp + 1
-		end,
-
-		[0x03] = function() -- iconst_0
-			emit("stack", sp, " = 0")
-			sp = sp + 1
-		end,
-
-		[0x04] = function() -- iconst_1
-			emit("stack", sp, " = 1")
-			sp = sp + 1
-		end,
-
-		[0x05] = function() -- iconst_2
-			emit("stack", sp, " = 2")
-			sp = sp + 1
-		end,
-
-		[0x06] = function() -- iconst_3
-			emit("stack", sp, " = 3")
-			sp = sp + 1
-		end,
-
-		[0x07] = function() -- iconst_4
-			emit("stack", sp, " = 4")
-			sp = sp + 1
-		end,
-
-		[0x08] = function() -- iconst_5
-			emit("stack", sp, " = 5")
-			sp = sp + 1
-		end,
-
-		[0x09] = function() -- lconst_0
-			emit("stack", sp, " = 0")
-			sp = sp + 2
-		end,
-
-		[0x0a] = function() -- lconst_1
-			emit("stack", sp, " = 1")
-			sp = sp + 2
-		end,
-
-		[0x0e] = function() -- dconst_0
-			emit("stack", sp, " = 0")
-			sp = sp + 2
-		end,
-
-		[0x0f] = function() -- dconst_1
-			emit("stack", sp, " = 1")
-			sp = sp + 2
-		end,
+		[0x01] = pushconst_op(1, nil), -- aconst_null
+		[0x02] = pushconst_op(1, -1), -- iconst_m1
+		[0x03] = pushconst_op(1, 0), -- iconst_0
+		[0x04] = pushconst_op(1, 1), -- iconst_1
+		[0x05] = pushconst_op(1, 2), -- iconst_2
+		[0x06] = pushconst_op(1, 3), -- iconst_3
+		[0x07] = pushconst_op(1, 4), -- iconst_4
+		[0x08] = pushconst_op(1, 5), -- iconst_5
+		[0x09] = pushconst_op(2, 0), -- lconst_0
+		[0x0a] = pushconst_op(2, 1), -- lconst_1
+		[0x0b] = pushconst_op(1, 0), -- fconst_0
+		[0x0c] = pushconst_op(1, 1), -- fconst_1
+		[0x0d] = pushconst_op(1, 2), -- fconst_2
+		[0x0e] = pushconst_op(2, 0), -- dconst_0
+		[0x0f] = pushconst_op(2, 1), -- dconst_1
 
 		[0x10] = function() -- bipush
 			local i = s1()
-			emit("stack", sp, " = ", i)
+			emit("stack", sp, " = tonumber(ffi.cast('int32_t', ", i, "))")
+			sp = sp + 1
+		end,
+
+		[0x11] = function() -- sipush
+			local i = s2()
+			emit("stack", sp, " = tonumber(ffi.cast('int32_t', ", i, "))")
 			sp = sp + 1
 		end,
 
@@ -265,84 +283,40 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 2
 		end,
 
-		[0x1a] = function() -- iload_0
-			emit("stack", sp, " = local0")
-			sp = sp + 1
-		end,
+		[0x1a] = localload_op(1, 0), -- iload_0
+		[0x1b] = localload_op(1, 1), -- iload_1
+		[0x1c] = localload_op(1, 2), -- iload_2
+		[0x1d] = localload_op(1, 3), -- iload_3
+		[0x1e] = localload_op(2, 0), -- lload_0
+		[0x1f] = localload_op(2, 1), -- lload_1
+		[0x20] = localload_op(2, 2), -- lload_2
+		[0x21] = localload_op(2, 3), -- lload_3
+		[0x22] = localload_op(1, 0), -- fload_0
+		[0x23] = localload_op(1, 1), -- fload_1
+		[0x24] = localload_op(1, 2), -- fload_2
+		[0x25] = localload_op(1, 3), -- fload_3
+		[0x26] = localload_op(2, 0), -- dload_0
+		[0x27] = localload_op(2, 1), -- dload_1
+		[0x28] = localload_op(2, 2), -- dload_2
+		[0x29] = localload_op(2, 3), -- dload_3
+		[0x2a] = localload_op(1, 0), -- aload_0
+		[0x2b] = localload_op(1, 1), -- aload_1
+		[0x2c] = localload_op(1, 2), -- aload_2
+		[0x2d] = localload_op(1, 3), -- aload_3
 
-		[0x1b] = function() -- iload_1
-			emit("stack", sp, " = local1")
-			sp = sp + 1
-		end,
+		[0x2e] = arrayload_op(1), -- iaload
+		[0x2f] = arrayload_op(2), -- laload
+		[0x30] = arrayload_op(1), -- faload
+		[0x31] = arrayload_op(2), -- daload
+		[0x32] = arrayload_op(1), -- aaload
+		[0x33] = arrayload_op(1), -- baload
+		[0x34] = arrayload_op(1), -- caload
+		[0x35] = arrayload_op(1), -- saload
 
-		[0x1c] = function() -- iload_2
-			emit("stack", sp, " = local2")
-			sp = sp + 1
-		end,
-
-		[0x1d] = function() -- iload_3
-			emit("stack", sp, " = local3")
-			sp = sp + 1
-		end,
-
-		[0x1e] = function() -- lload_0
-			emit("stack", sp, " = local0")
-			sp = sp + 2
-		end,
-
-		[0x1f] = function() -- lload_1
-			emit("stack", sp, " = local1")
-			sp = sp + 2
-		end,
-
-		[0x20] = function() -- lload_2
-			emit("stack", sp, " = local2")
-			sp = sp + 2
-		end,
-
-		[0x21] = function() -- lload_3
-			emit("stack", sp, " = local3")
-			sp = sp + 2
-		end,
-
-		[0x26] = function() -- dload_0
-			emit("stack", sp, " = local0")
-			sp = sp + 2
-		end,
-
-		[0x27] = function() -- dload_1
-			emit("stack", sp, " = local1")
-			sp = sp + 2
-		end,
-
-		[0x28] = function() -- dload_2
-			emit("stack", sp, " = local2")
-			sp = sp + 2
-		end,
-
-		[0x29] = function() -- dload_3
-			emit("stack", sp, " = local3")
-			sp = sp + 2
-		end,
-
-		[0x2a] = function() -- aload_0
-			emit("stack", sp, " = local0")
-			sp = sp + 1
-		end,
-
-		[0x2b] = function() -- aload_1
-			emit("stack", sp, " = local1")
-			sp = sp + 1
-		end,
-
-		[0x2c] = function() -- aload_2
-			emit("stack", sp, " = local2")
-			sp = sp + 1
-		end,
-
-		[0x2d] = function() -- aload_3
-			emit("stack", sp, " = local3")
-			sp = sp + 1
+		[0x36] = function() -- istore
+			local var = u1()
+			sp = sp - 1
+			emit("local", var, " = stack", sp)
 		end,
 
 		[0x37] = function() -- lstore
@@ -357,60 +331,31 @@ local function compile_method(class, analysis, mimpl)
 			emit("local", var, " = stack", sp)
 		end,
 
-		[0x3b] = function() -- istore_0
-			sp = sp - 1
-			emit("local0 = stack", sp)
-		end,
+		[0x3b] = localstore_op(1, 0), -- istore_0
+		[0x3c] = localstore_op(1, 1), -- istore_1
+		[0x3d] = localstore_op(1, 2), -- istore_2
+		[0x3e] = localstore_op(1, 3), -- istore_3
+		[0x3f] = localstore_op(2, 0), -- lstore_0
+		[0x40] = localstore_op(2, 1), -- lstore_1
+		[0x41] = localstore_op(2, 2), -- lstore_2
+		[0x42] = localstore_op(2, 3), -- lstore_3
+		[0x47] = localstore_op(2, 0), -- dstore_0
+		[0x48] = localstore_op(2, 1), -- dstore_1
+		[0x49] = localstore_op(2, 2), -- dstore_2
+		[0x4a] = localstore_op(2, 3), -- dstore_3
+		[0x4b] = localstore_op(1, 0), -- astore_0
+		[0x4c] = localstore_op(1, 1), -- astore_1
+		[0x4d] = localstore_op(1, 2), -- astore_2
+		[0x4e] = localstore_op(1, 3), -- astore_3
 
-		[0x3c] = function() -- istore_1
-			sp = sp - 1
-			emit("local1 = stack", sp)
-		end,
-
-		[0x3d] = function() -- istore_2
-			sp = sp - 1
-			emit("local2 = stack", sp)
-		end,
-
-		[0x3e] = function() -- istore_3
-			sp = sp - 1
-			emit("local3 = stack", sp)
-		end,
-
-		[0x3f] = function() -- lstore_0
-			sp = sp - 2
-			emit("local0 = stack", sp)
-		end,
-
-		[0x40] = function() -- lstore_1
-			sp = sp - 2
-			emit("local1 = stack", sp)
-		end,
-
-		[0x41] = function() -- lstore_2
-			sp = sp - 2
-			emit("local2 = stack", sp)
-		end,
-
-		[0x42] = function() -- lstore_3
-			sp = sp - 2
-			emit("local3 = stack", sp)
-		end,
-
-		[0x48] = function() -- dstore_1
-			sp = sp - 2
-			emit("local1 = stack", sp)
-		end,
-
-		[0x4a] = function() -- dstore_3
-			sp = sp - 2
-			emit("local3 = stack", sp)
-		end,
-
-		[0x4c] = function() -- astore_1
-			sp = sp - 1
-			emit("local1 = stack", sp)
-		end,
+		[0x4f] = arraystore_op(1), -- iastore
+		[0x50] = arraystore_op(2), -- lastore
+		[0x51] = arraystore_op(1), -- fastore
+		[0x52] = arraystore_op(2), -- dastore
+		[0x53] = arraystore_op(1), -- aastore
+		[0x54] = arraystore_op(1), -- bastore
+		[0x55] = arraystore_op(1), -- castore
+		[0x56] = arraystore_op(1), -- sastore
 
 		[0x57] = function() -- pop
 			sp = sp - 1
@@ -463,6 +408,11 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 2
 		end,
 
+		[0x6a] = function() -- fmul
+			emit("stack", sp-2, " = stack", sp-2, " * stack", sp-1)
+			sp = sp - 1
+		end,
+
 		[0x6c] = function() -- idiv
 			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, " / stack", sp-1, "))")
 			sp = sp - 1
@@ -488,6 +438,11 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 2
 		end,
 
+		[0x7e] = function() -- iand
+			emit("stack", sp-2, " = bit.band(stack", sp-2, ", stack", sp-1, ")")
+			sp = sp - 1
+		end,
+
 		[0x84] = function() -- iinc
 			local var = u1()
 			local i = s1()
@@ -497,6 +452,10 @@ local function compile_method(class, analysis, mimpl)
 		[0x85] = function() -- i2l
 			emit("stack", sp-1, " = ffi.cast('int64_t', stack", sp-1, ")")
 			sp = sp + 1
+		end,
+
+		[0x86] = function() -- i2f
+			emit("stack", sp-1, " = tonumber(stack", sp-1, ")")
 		end,
 
 		[0x87] = function() -- i2d
@@ -513,6 +472,18 @@ local function compile_method(class, analysis, mimpl)
 			emit("stack", sp-2, " = tonumber(stack", sp-2, ")")
 		end,
 
+		[0x91] = function() -- i2b
+			emit("stack", sp-1, " = tonumber(ffi.cast('uint8_t', stack", sp-1, "))")
+		end,
+
+		[0x92] = function() -- i2c
+			emit("stack", sp-1, " = tonumber(ffi.cast('uint16_t', stack", sp-1, "))")
+		end,
+
+		[0x93] = function() -- i2s
+			emit("stack", sp-1, " = tonumber(ffi.cast('int16_t', stack", sp-1, "))")
+		end,
+
 		[0x94] = function() -- lcmp
 			emitnonl("if (stack", sp-4, " == stack", sp-2, ") then stack", sp-4, " = 0 elseif ")
 			emitnonl("(stack", sp-4, " < stack", sp-2, ") then stack", sp-4, " = -1 else ")
@@ -520,6 +491,14 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 3
 		end,
 			
+		[0x95] = function() -- fcmpl
+			sp = sp - 2
+			emitnonl("if (stack", sp, " == stack", sp+1, ") then stack", sp, " = 0 elseif ")
+			emitnonl("(stack", sp, " < stack", sp+1, ") then stack", sp, " = -1 else ")
+			emit("stack", sp, " = 1 end")
+			sp = sp + 1
+		end,
+
 		[0x98] = function() -- dcmpg
 			emitnonl("if (stack", sp-4, " == stack", sp-2, ") then stack", sp-4, " = 0 elseif ")
 			emitnonl("(stack", sp-4, " < stack", sp-2, ") then stack", sp-4, " = -1 else ")
@@ -529,64 +508,75 @@ local function compile_method(class, analysis, mimpl)
 
 		[0x99] = function() -- ifeq
 			local delta = s2() - 3
-			emit("if (stack", sp-1, " == 0) then goto pc_", pos+delta, " end")
 			sp = sp - 1
+			emit("if (stack", sp, " == 0) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0x9a] = function() -- ifeq
 			local delta = s2() - 3
-			emit("if (stack", sp-1, " ~= 0) then goto pc_", pos+delta, " end")
 			sp = sp - 1
+			emit("if (stack", sp, " ~= 0) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0x9b] = function() -- iflt
 			local delta = s2() - 3
-			emit("if (stack", sp-1, " < 0) then goto pc_", pos+delta, " end")
 			sp = sp - 1
+			emit("if (stack", sp, " < 0) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0x9c] = function() -- ifge
 			local delta = s2() - 3
-			emit("if (stack", sp-1, " >= 0) then goto pc_", pos+delta, " end")
 			sp = sp - 1
+			emit("if (stack", sp, " >= 0) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0x9d] = function() -- ifgt
 			local delta = s2() - 3
-			emit("if (stack", sp-1, " > 0) then goto pc_", pos+delta, " end")
 			sp = sp - 1
+			emit("if (stack", sp, " > 0) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0x9e] = function() -- ifle
 			local delta = s2() - 3
-			emit("if (stack", sp-1, " <= 0) then goto pc_", pos+delta, " end")
 			sp = sp - 1
+			emit("if (stack", sp, " <= 0) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0xa2] = function() -- if_icmpge
 			local delta = s2() - 3
-			emit("if (stack", sp-2, " >= stack", sp-1, ") then goto pc_", pos+delta, " end")
 			sp = sp - 2
+			emit("if (stack", sp, " >= stack", sp+1, ") then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 
 		[0xa7] = function() -- goto
 			local delta = s2() - 3
 			emit("goto pc_", pos+delta)
-			sp = 0
+			setstack(pos+delta, sp)
+			sp = nil
 		end,
 
 		[0xac] = function() -- ireturn
-			emit("do return stack", sp-1, " end")
+			sp = sp - 1
+			emit("do return stack", sp, " end")
 			sp = 0
 		end,
 
 		[0xaf] = function() -- dreturn
-			emit("do return stack", sp-2, " end")
+			sp = sp - 2
+			emit("do return stack", sp, " end")
 			sp = 0
 		end,
 
 		[0xb0] = function() -- areturn
-			emit("do return stack", sp-1, " end")
+			sp = sp - 1
+			emit("do return stack", sp, " end")
 			sp = 0
 		end,
 
@@ -619,6 +609,7 @@ local function compile_method(class, analysis, mimpl)
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
 			sp = sp - 1
+			nullcheck("stack", sp)
 			emit("stack", sp, " = stack", sp, "['f_", f.Class, '::', f.Name, "']")
 			sp = sp + f.Size
 		end,
@@ -629,6 +620,7 @@ local function compile_method(class, analysis, mimpl)
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
 			sp = sp - f.Size - 1
+			nullcheck("stack", sp)
 			emit("stack", sp, "['f_", f.Class, '::', f.Name, "'] = stack", sp+1)
 		end,
 
@@ -638,6 +630,7 @@ local function compile_method(class, analysis, mimpl)
 			local c = constant(class:ClassLoader():LoadClass(f.Class))
 
 			local self = "stack"..(sp-1-f.Size)
+			nullcheck(self)
 			emitnonl("do local r, e = ", self, "['m_", f.Name, f.Descriptor, "']")
 			methodcall(f, self)
 			sp = sp - 1
@@ -683,6 +676,25 @@ local function compile_method(class, analysis, mimpl)
 			emit("end")
 		end,
 
+		[0xb9] = function() -- invokeinterface
+			local i = u2()
+			local f = analysis.RefConstants[i]
+			local c = constant(class:ClassLoader():LoadClass(f.Class))
+
+			local self = "stack"..(sp-1-f.Size)
+			nullcheck(self)
+			emitnonl("do local r, e = ", self, "['m_", f.Name, f.Descriptor, "']")
+			methodcall(f, self)
+			sp = sp - 1
+
+			if (f.OutParams > 0) then
+				emitnonl("stack", sp, " = r ")
+				sp = sp + f.OutParams
+			end
+
+			emit("end")
+		end,
+
 		[0xbb] = function() -- new
 			local i = u2()
 			local f = analysis.ClassConstants[i]
@@ -692,15 +704,27 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp + 1
 		end,
 
+		[0xbc] = function() -- newarray
+			local i = u1()
+			emit("stack", sp-1, " = runtime.NewArray(", i, ", stack", sp-1, ")")
+		end,
+
 		[0xbe] = function() -- arraylength
 			nullcheck("stack"..(sp-1))
-			emit("stack", (sp-1), " = stack", (sp-1), ":length()")
+			emit("stack", (sp-1), " = stack", (sp-1), ":Length()")
+		end,
+
+		[0xbf] = function() -- athrow
+			local o = "stack"..(sp-1)
+			emit("Runtime.Throw(", o, ")")
+			sp = 0
 		end,
 
 		[0xc7] = function() -- ifnonnull
 			local delta = s2() - 3
-			emit("if (stack", sp-1, " ~= nil) then goto pc_", pos+delta, " end")
 			sp = sp - 1
+			emit("if (stack", sp, " ~= nil) then goto pc_", pos+delta, " end")
+			setstack(pos+delta, sp)
 		end,
 	}
 
