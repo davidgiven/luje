@@ -10,12 +10,12 @@ ServerDir = arg[0]:gsub("[^/]+$", "")
 package.path = ServerDir .. "?.lua;" .. ServerDir .. "?/init.lua;" .. package.path
 
 local Utils = require("Utils")
-local ClassLoader = require("ClassLoader")
+local ClimpLoader = require("ClimpLoader")
 local pretty = require("pl.pretty")
 
 require("natives")
 
-local t = ClassLoader:LoadClass("com/cowlark/luje/OTest")
+local t = ClimpLoader.Default:LoadClimp("com/cowlark/luje/OTest")
 local m = t["m_main([Ljava/lang/String;)V"]
 Utils.Assert(m, "this isn't a main class")
 local r = m(t, nil)

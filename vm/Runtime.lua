@@ -11,9 +11,11 @@ local pretty = require("pl.pretty")
 local string_byte = string.byte
 local string_find = string.find
 local table_concat = table.concat
+local ClimpLoader = require("ClimpLoader")
 
 local native_methods = {}
 local globalhash = 0
+local classobjects = {}
 
 local primitivetypes =
 {
@@ -27,15 +29,15 @@ local primitivetypes =
 	[11] = {"J", "int64_t"}
 }
 
-local function New(classo)
+local function New(climp)
 	local hash = globalhash
 	globalhash = globalhash + 1
 
 	local o = {
-		Class = function() return classo end,
+		Climp = function() return climp end,
 		Hash = function() return hash end,
 	}
-	classo:InitInstance(o)
+	climp:InitInstance(o)
 
 	setmetatable(o,
 		{
@@ -43,7 +45,7 @@ local function New(classo)
 				local _, _, n = string_find(k, "m_(.*)")
 				if n then
 					Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
-					local m = classo:FindMethod(n)
+					local m = climp:FindMethod(n)
 					rawset(o, k, m)
 					return m
 				else
@@ -67,14 +69,14 @@ return {
 
 	New = New,
 
-	NewArray = function(kind, length, callerclasso)
+	NewArray = function(kind, length)
 		local k = primitivetypes[kind]
 		Utils.Assert(k, "unsupported primitive kind ", kind)
 		local typechar, impl = unpack(k)
 
 		local classname = "["..typechar
-		local classo = callerclasso:ClassLoader():LoadInternalClass(classname)
-		local object = New(classo)
+		local climp = ClimpLoader.Default:LoadClimp(classname)
+		local object = New(climp)
 
 		local store = ffi.new(impl.."["..tonumber(length).."]")
 
@@ -95,10 +97,10 @@ return {
 		return object
 	end,
 
-	NewAArray = function(classo, length, callerclasso)
-		local classname = "[L"..classo:ThisClass()..";"
-		local arrayclasso = callerclasso:ClassLoader():LoadInternalClass(classname)
-		local object = New(arrayclasso)
+	NewAArray = function(climp, length)
+		local classname = "[L"..climp:ThisClass()..";"
+		local arrayclimp = ClimpLoader.Default:LoadClimp(classname)
+		local object = New(arrayclimp)
 
 		local store = {}
 
@@ -119,18 +121,28 @@ return {
 		return object
 	end,
 
-	CheckCast = function(o, classo)
+	CheckCast = function(o, climp)
 		if not o then
 			return
 		end
-		local c = o:Class()
+		local c = o:Climp()
 		while c do
-			if (c == classo) then
+			if (c == climp) then
 				return
 			end
-			c = c:SuperClass()
+			c = c:SuperClimp()
 		end
 		Utils.Throw("bad cast")
+	end,
+
+	GetClassForClimp = function(climp)
+		if not classobjects[climp] then
+			local c = ClimpLoader.Default:LoadClimp("java/lang/Class")
+			local o = New(c)
+			o.forClimp = climp
+			classobjects[climp] = o
+		end
+		return classobjects[climp]
 	end
 }
 

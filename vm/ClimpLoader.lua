@@ -7,21 +7,39 @@
 local Utils = require("Utils")
 local dbg = Utils.Debug
 local classanalyser = require("classanalyser")
-local Class = require("Class")
+local string_find = string.find
 
 local cache = {}
 local path = "../bin/"
 
-local function LoadClass(self, name)
+-- module reference resolved lazily to avoid startup issues
+local Climp
+
+local function LoadClimp(self, name)
 	local c = cache[name]
 	if c then
 		return c
 	end
 
+	if not Climp then
+		Climp = require("Climp")
+	end
+
 	dbg("loading: ", name)
-	local s = Utils.LoadFile(path..name..".class")
-	local t = classanalyser(s)
-	c = Class(self)
+	local t
+	if string_find(name, "^%[") then
+		t = {
+			ThisClass = name,
+			SuperClass = "java/lang/Object",
+			Fields = {},
+			Methods = {},
+		}
+	else
+		local s = Utils.LoadFile(path..name..".class")
+		t = classanalyser(s)
+	end
+
+	c = Climp(self)
 	cache[name] = c
 	c:Init(t)
 
@@ -34,27 +52,15 @@ local function LoadClass(self, name)
 	return c
 end
 
-local function LoadInternalClass(self, name)
-	local c = cache[name]
-	if c then
-		return c
-	end
-
-	dbg("loading: ", name)
-	local t = {
-		ThisClass = name,
-		SuperClass = "java/lang/Class",
-		Fields = {},
-		Methods = {},
+local function New()
+	return {
+		LoadClimp = LoadClimp,
 	}
-	c = Class(self)
-	cache[name] = c
-	c:Init(t)
-
-	return c
 end
 
+local default = New()
 return {
-	LoadClass = LoadClass,
-	LoadInternalClass = LoadInternalClass
+	Default = default,
+	New = New
 }
+

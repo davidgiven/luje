@@ -18,31 +18,19 @@ Runtime.RegisterNativeMethod("java/lang/Object", "hashCode()I",
 
 --- Class management --------------------------------------------------------
 
-local classobjects = {}
-local function getclassfor(classo)
-	if not classobjects[classo] then
-		local c = classo:ClassLoader():LoadClass("java/lang/Class")
-		local o = Runtime.New(c)
-		o.forClass = classo
-		classobjects[classo] = o
-	end
-	return classobjects[classo]
-end
-
 Runtime.RegisterNativeMethod("java/lang/Object", "getClass()Ljava/lang/Class;",
 	function(self)
-		local classo = self:Class()
-		return getclassfor(classo)
+		return Runtime.GetClassForClimp(self:Climp())
 	end
 )
 
 Runtime.RegisterNativeMethod("java/lang/Class", "getComponentType()Ljava/lang/Class;",
 	function(self)
-		local classo = self.forClass
-		local n = classo:ThisClass()
+		local climp = self.forClimp
+		local n = climp:ThisClass()
 		local a, b = string_find(n, "^(.)(.*)$")
 		if (a == "[") then
-			local c = classo:ClassLoader():LoadInternalClass(b)
+			local c = climp:Climp():LoadClimp(b)
 			return getclassfor(c)
 		else
 			return nil
@@ -52,8 +40,8 @@ Runtime.RegisterNativeMethod("java/lang/Class", "getComponentType()Ljava/lang/Cl
 
 Runtime.RegisterNativeMethod("java/lang/Class", "isArray()Z",
 	function(self)
-		local classo = self.forClass
-		local n = classo:ThisClass()
+		local climp = self.forClimp
+		local n = climp:ThisClimp()
 		return not not string_find(n, "^%[")
 	end
 )

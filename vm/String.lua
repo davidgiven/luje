@@ -5,5 +5,6 @@
 -- project root for the full text.
 
 return function(utf8)
+	dbg(utf8)
 	return {}
 end

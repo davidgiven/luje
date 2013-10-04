@@ -18,11 +18,21 @@ local WtoSW = Cast.WtoSW
 local WWtoI = Cast.WWtoI
 local ItoSI = Cast.ItoSI
 
+-- Retrieves a constant value from a climp.
+
+local constantparser = {
+	["CONSTANT_class"] = function(c, analysis, climploader)
+		local classname = analysis.Utf8Constants[c.name_index]
+		local climp = climploader:LoadClimp(classname)
+		return Runtime.GetClassForClimp(climp)
+	end
+}
+
 -- This function does the bytecode compilation. It takes the bytecode and
 -- converts it into a Lua script, then compiles it and returns the method as
 -- a callable function.
 
-local function compile_method(class, analysis, mimpl)
+local function compile_method(climp, analysis, mimpl)
 	dbg("compiling: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
 
 	local bytecode = mimpl.Code.Bytecode
@@ -266,7 +276,7 @@ local function compile_method(class, analysis, mimpl)
 
 		[0x12] = function() -- ldc
 			local i = u1()
-			local c = analysis.SimpleConstants[i]
+			local c = climp:GetConstantValue(i)
 			if (type(c) == "table") then
 				c = constant(c)
 			end
@@ -276,7 +286,7 @@ local function compile_method(class, analysis, mimpl)
 
 		[0x13] = function() -- ldc
 			local i = u2()
-			local c = analysis.SimpleConstants[i]
+			local c = climp:GetConstantValue(i)
 			if (type(c) == "table") then
 				c = constant(c)
 			end
@@ -286,7 +296,7 @@ local function compile_method(class, analysis, mimpl)
 
 		[0x14] = function() -- ldc2_w
 			local i = u2()
-			local c = analysis.SimpleConstants[i]
+			local c = climp:GetConstantValue(i)
 			emit("stack", sp, " = ", c)
 			sp = sp + 2
 		end,
@@ -482,6 +492,15 @@ local function compile_method(class, analysis, mimpl)
 			sp = sp - 2
 		end,
 
+		[0x70] = function() -- irem
+			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, " % stack", sp-1, "))")
+			sp = sp - 1
+		end,
+
+		[0x74] = function() -- ineg
+			emit("stack", sp-1, " = tonumber(ffi.cast('int32_t', -stack", sp-1, "))")
+		end,
+
 		[0x78] = function() -- ishl
 			emit("stack", sp-2, " = bit.lshift(stack", sp-2, ", stack", sp-1, ")")
 			sp = sp - 1
@@ -653,7 +672,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xb2] = function() -- getstatic
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			emit("stack", sp, " = ", c, "['f_", f.Class, "::", f.Name, "']")
 			sp = sp + f.Size
@@ -662,7 +681,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xb3] = function() -- putstatic
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			sp = sp - f.Size
 			emit(c, "['f_", f.Class, "::", f.Name, "'] = stack", sp)
@@ -671,7 +690,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xb4] = function() -- getfield
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			sp = sp - 1
 			nullcheck("stack"..sp)
@@ -682,7 +701,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xb5] = function() -- putfield
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			sp = sp - f.Size - 1
 			nullcheck("stack"..sp)
@@ -692,7 +711,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xb6] = function() -- invokevirtual
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			local self = "stack"..(sp-1-f.Size)
 			nullcheck(self)
@@ -711,7 +730,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xb7] = function() -- invokespecial
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "']")
 			methodcall(f, "stack"..(sp-1-f.Size))
@@ -728,7 +747,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xb8] = function() -- invokestatic
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "']")
 			methodcall(f)
@@ -745,7 +764,7 @@ local function compile_method(class, analysis, mimpl)
 			local i = u2()
 			u2() -- read and ingore two bytes
 			local f = analysis.RefConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f.Class))
+			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			local self = "stack"..(sp-1-f.Size)
 			nullcheck(self)
@@ -764,7 +783,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xbb] = function() -- new
 			local i = u2()
 			local f = analysis.ClassConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f))
+			local c = constant(climp:ClimpLoader():LoadClimp(f))
 
 			emit("stack", sp, " = runtime.New(", c, ")")
 			sp = sp + 1
@@ -772,15 +791,14 @@ local function compile_method(class, analysis, mimpl)
 
 		[0xbc] = function() -- newarray
 			local i = u1()
-			local c = constant(class)
-			emit("stack", sp-1, " = runtime.NewArray(", i, ", stack", sp-1, ", ", c, ")")
+			emit("stack", sp-1, " = runtime.NewArray(", i, ", stack", sp-1, ")")
 		end,
 
 		[0xbd] = function() -- anewarray
 			local i = u2()
 			local f = analysis.ClassConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f))
-			emit("stack", sp-1, " = runtime.NewAArray(", c, ", stack", sp-1, ", ", constant(class), ")")
+			local c = constant(climp:ClimpLoader():LoadClimp(f))
+			emit("stack", sp-1, " = runtime.NewAArray(", c, ", stack", sp-1, ")")
 		end,
 
 		[0xbe] = function() -- arraylength
@@ -797,7 +815,7 @@ local function compile_method(class, analysis, mimpl)
 		[0xc0] = function() -- checkcast
 			local i = u2()
 			local f = analysis.ClassConstants[i]
-			local c = constant(class:ClassLoader():LoadClass(f))
+			local c = constant(climp:ClimpLoader():LoadClimp(f))
 
 			local o = "stack"..(sp-1)
 			emit("runtime.CheckCast(", o, ", ", c, ")")
@@ -860,7 +878,7 @@ local function compile_method(class, analysis, mimpl)
 
 	-- Compile it.
 	
-	dbg(table_concat(wrapper))
+	--dbg(table_concat(wrapper))
 	local chunk, e = load(table_concat(wrapper),
 		analysis.ThisClass.."::"..mimpl.Name..mimpl.Descriptor)
 	Utils.Check(e, "compilation failed")
@@ -875,33 +893,34 @@ end
 -- Lua method which implements it after looking it up in the native
 -- method registration table.
 
-local function compile_native_method(class, analysis, mimpl)
+local function compile_native_method(climp, analysis, mimpl)
 	local f = Runtime.FindNativeMethod(analysis.ThisClass, mimpl.Name .. mimpl.Descriptor)
 	Utils.Assert(f, "no native method for ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
 	return f
 end
 
-local function compile_nonstatic_method(class, analysis, mimpl)
+local function compile_nonstatic_method(climp, analysis, mimpl)
 	if string_find(mimpl.AccessFlags, " native ") then
-		return compile_native_method(class, analysis, mimpl)
+		return compile_native_method(climp, analysis, mimpl)
 	else
-		return compile_method(class, analysis, mimpl)
+		return compile_method(climp, analysis, mimpl)
 	end
 end
 
-local function compile_static_method(class, analysis, mimpl)
+local function compile_static_method(climp, analysis, mimpl)
 	if string_find(mimpl.AccessFlags, " native ") then
-		return compile_native_method(class, analysis, mimpl)
+		return compile_native_method(climp, analysis, mimpl)
 	else
-		return compile_method(class, analysis, mimpl)
+		return compile_method(climp, analysis, mimpl)
 	end
 end
 
-return function(classloader)
+return function(climploader)
 	local analysis
 	local instancevars = {}
 	local instancemethodcache = {}
-	local superclass
+	local superclimp
+	local constants = {}
 
 	local c
 	c = {
@@ -926,7 +945,7 @@ return function(classloader)
 			-- Load the superclass.
 
 			if analysis.SuperClass then
-				superclass = classloader:LoadClass(analysis.SuperClass)
+				superclimp = climploader:LoadClimp(analysis.SuperClass)
 			end
 		end,
 
@@ -934,8 +953,8 @@ return function(classloader)
 			return analysis.ThisClass
 		end,
 
-		SuperClass = function(self)
-			return superclass
+		SuperClimp = function(self)
+			return superclimp
 		end,
 
 		InitInstance = function(self, o)
@@ -943,13 +962,13 @@ return function(classloader)
 				rawset(o, k, v)
 			end
 
-			if superclass then
-				superclass:InitInstance(o)
+			if superclimp then
+				superclimp:InitInstance(o)
 			end
 		end,
 
-		ClassLoader = function(self)
-			return classloader
+		ClimpLoader = function(self)
+			return climploader
 		end,
 
 		FindStaticMethod = function(self, n)
@@ -964,8 +983,8 @@ return function(classloader)
 			if not instancemethodcache[n] then
 				local mimpl = analysis.Methods[n]
 				if not mimpl then
-					if superclass then
-						return superclass:FindMethod(n)
+					if superclimp then
+						return superclimp:FindMethod(n)
 					end
 					return nil
 				end
@@ -973,6 +992,22 @@ return function(classloader)
 			end
 			return instancemethodcache[n]
 		end,
+
+		GetConstantValue = function(self, index)
+			if not constants[index] then
+				local c = analysis.Constants[index]
+				if (type(c) == "table") then
+					local parser = constantparser[c.tag]
+					if parser then
+						c = parser(c, analysis, climploader)
+					else
+						Utils.Throw("can't get constant index "..index.." for "..analysis.ThisClass.."; tag is "..c.tag)
+					end
+				end
+				constants[index] = c
+			end
+			return constants[index]
+		end
 	}
 
 	setmetatable(c,

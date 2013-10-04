@@ -111,12 +111,14 @@ local function loadclass(classdata)
 
 		[7] = function() -- CONSTANT_Class
 			return {
+				tag = "CONSTANT_class",
 				name_index = u2()
 			}, 1
 		end,
 
 		[8] = function() -- CONSTANT_String
 			return {
+				tag = "CONSTANT_String",
 				string_index = u2()
 			}, 1
 		end,
@@ -127,6 +129,7 @@ local function loadclass(classdata)
 
 		[12] = function() -- CONSTANT_NameAndType
 			return {
+				tag = "CONSTANT_NameAndType",
 				name_index = u2(),
 				descriptor_index = u2()
 			}, 1
@@ -273,7 +276,7 @@ local function loadclass(classdata)
 	-- parse
 	--
 	for _, e in ipairs({"LocalVariableTypeTable", "StackMapTable", "Signature",
-			"Exceptions"}) do
+			"Exceptions", "RuntimeVisibleAnnotations"}) do
 		attribute_reader[e] = function() return {} end
 	end
 

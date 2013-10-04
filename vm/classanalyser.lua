@@ -47,7 +47,7 @@ local attribute_resolvers =
 
 for _, e in ipairs({"LineNumberTable", "LocalVariableTable",
 		"LocalVariableTypeTable", "StackMapTable", "Signature",
-		"Exceptions", "InnerClasses"}) do
+		"Exceptions", "InnerClasses", "RuntimeVisibleAnnotations"}) do
 	attribute_resolvers[e] = function(class, attribute)
 		return attribute
 	end
@@ -232,30 +232,6 @@ local function analyseclass(classdata)
 		}
 	)
 
-	local SimpleConstants = {}
-	setmetatable(SimpleConstants,
-		{
-			__index = function(self, k)
-				local c = impl.constants[k]
-				local cc
-				if (type(c) == "table") then
-					if c.string_index then
-						cc = String(Utf8Constants[c.string_index])
-					end
-				else
-					cc = c
-				end
-
-				if not cc then
-					Utils.Throw("can't handle ldc with constant index "..k)
-				end
-
-				self[k] = cc
-				return cc
-			end
-		}
-	)
-
 	local Methods = {}
 	for _, m in ipairs(impl.methods) do
 		local name = Utf8Constants[m.name_index]
@@ -293,9 +269,9 @@ local function analyseclass(classdata)
 		Utf8Constants = Utf8Constants,
 		ClassConstants = ClassConstants,
 		RefConstants = RefConstants,
-		SimpleConstants = SimpleConstants,
 		Methods = Methods,
 		Fields = Fields,
+		Constants = impl.constants
 	}
 
 	resolveattributes(class, impl.attributes, class)
