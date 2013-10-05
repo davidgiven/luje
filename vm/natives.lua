@@ -87,6 +87,19 @@ Runtime.RegisterNativeMethod("org/apache/harmony/luni/util/NumberConverter", "co
 	end
 )
 
+--- Arrays ------------------------------------------------------------------
+
+Runtime.RegisterNativeMethod("java/lang/System", "arraycopyImpl(Ljava/lang/Object;ILjava/lang/Object;II)V",
+	function(src, srcpos, dest, destpos, length)
+		local get = src.ArrayGet
+		local put = dest.ArrayPut
+		for i=0, length-1 do
+			local j = get(src, srcpos+i)
+			put(dest, destpos+i, j)
+		end
+	end
+)
+
 --- System bindings ---------------------------------------------------------
 
 Runtime.RegisterNativeMethod("java/io/FileDescriptor", "getStdInDescriptor()J",

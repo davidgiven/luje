@@ -2,93 +2,95 @@ package com.cowlark.luje;
 
 public class Main
 {
-	public static double intmark;
-	public static double longmark;
-	public static double doublemark;
-	public static double trigmark;
+	public static long TIME = 2000;
+	public static long STEP = 1000;
 
-	public static double intresult; // expected: 1
-	public static double longresult; // expected: 1
-	public static double doubleresult; // expected: 1.999999971621986E8
-	public static double trigresult; // expected: 4.245415607697713E9
-
-	public static double intbenchmark(int cnt){
-		int intResult = 1;
-		int i = 1;
-		long startTime = System.currentTimeMillis();
-		while (i < cnt){
-			intResult -= i++;
-			intResult += i++;
-			intResult *= i++;
-			intResult /= i++;
-		}
-		intresult = intResult;
-		long resultTime = System.currentTimeMillis() - startTime;
-		return (i*2.0/resultTime/1000);
-	}
-
-   public static double longbenchmark(int cnt){
-		long longResult = 1;
-		long i = 1;
-		long startTime = System.currentTimeMillis();
-		while (i < cnt){
-			longResult -= i++;
-			longResult += i++;
-			longResult *= i++;
-			longResult /= i++;
-		}
-		longresult = longResult;
-		long resultTime = System.currentTimeMillis() - startTime;
-		return (i*2.0/resultTime/1000);
-	}
-
-	public static double doublebenchmark(int cnt){            
-		double doubleResult = 1;
-		double i = 1;
-		long startTime = System.currentTimeMillis();
-		while (i < cnt){
-			doubleResult -= i++;
-			doubleResult += i++;
-			doubleResult *= i++;
-			doubleResult /= i++;
-		}
-		doubleresult = doubleResult;
-		long resultTime = System.currentTimeMillis() - startTime;
-		return (i*2.0/resultTime/1000);
-	}
-
-	public static double trigbenchmark(int cnt){
-		double sine = 0.0;
-		double cosine = 0.0;
-		double tangent = 0.0;
-		double logarithm = 0.0;
-		double squareRoot = 0.0;
-		double i = 1;
-		long startTime = System.currentTimeMillis();
-		while (i < cnt){
-			sine += Math.sin(i++);
-			cosine += Math.cos(i++);
-			tangent += Math.tan(i++);
-			logarithm += Math.log(i++);
-			squareRoot += Math.sqrt(i++);
-		}
-		trigresult = sine + cosine + tangent + logarithm + squareRoot;
-		long resultTime = System.currentTimeMillis() - startTime;
-		return (i/resultTime/1000);
-	}
-	
-	public static void benchmark()
+	public static abstract class Benchmark
 	{
-		intmark = intbenchmark(1000000000);
-		longmark = longbenchmark(1000000000);
-		doublemark = doublebenchmark(1000000000);
-		trigmark = trigbenchmark(10000000);
+		public abstract void iterate();
+	};
+
+	public static class IntBenchmark extends Benchmark
+	{
+		private int result = 1;
+		private int count = 1;
+
+		public void iterate()
+		{
+			result -= count++;
+			result += count++;
+			result *= count++;
+			result /= count++;
+		}
+	}
+
+	public static class LongBenchmark extends Benchmark
+	{
+		private long result = 1;
+		private long count = 1;
+
+		public void iterate()
+		{
+			result -= count++;
+			result += count++;
+			result *= count++;
+			result /= count++;
+		}
+	}
+
+	public static class FloatBenchmark extends Benchmark
+	{
+		private float result = 1;
+		private float count = 1;
+
+		public void iterate()
+		{
+			result -= count++;
+			result += count++;
+			result *= count++;
+			result /= count++;
+		}
+	}
+
+	public static class DoubleBenchmark extends Benchmark
+	{
+		private double result = 1;
+		private double count = 1;
+
+		public void iterate()
+		{
+			result -= count++;
+			result += count++;
+			result *= count++;
+			result /= count++;
+		}
+	}
+
+	public static void bench(Benchmark b, String name)
+	{
+		long startTime = System.currentTimeMillis();
+		long elapsed;
+		int iterations = 0;
+		for (;;)
+		{
+			elapsed = System.currentTimeMillis() - startTime;
+			if (elapsed > TIME)
+				break;
+
+			for (int i=0; i<STEP; i++)
+				b.iterate();
+			iterations += STEP;
+		}
+
+		double speed = (double)iterations / (double)elapsed;
+		System.out.println(name+": "+speed+" ("+iterations+" iterations)");
 	}
 
 	public static void main(String[] argv)
 	{
-		benchmark();
-		System.out.println(intmark + " " + longmark + " " + doublemark + " " + trigmark);
-		System.out.println(intresult + " " + longresult + " " + doubleresult + " " + trigresult);
+		bench(new IntBenchmark(), "integer");
+		bench(new LongBenchmark(), "long");
+		bench(new FloatBenchmark(), "float");
+		bench(new DoubleBenchmark(), "double");
 	}
 }

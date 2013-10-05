@@ -458,6 +458,18 @@ local function compile_method(climp, analysis, mimpl)
 			emit("stack", sp-1, " = stack", sp-3)
 		end,
 
+		[0x5d] = function() -- dup2_x1
+			sp = sp - 3
+			emitnonl("do local v3, v2, v1 = stack", sp, ", stack", sp+1, ", stack", sp+2)
+			emitnonl(" stack", sp, "=v2")
+			emitnonl(" stack", sp+1, "=v1")
+			emitnonl(" stack", sp+2, "=v3")
+			emitnonl(" stack", sp+3, "=v2")
+			emitnonl(" stack", sp+4, "=v1")
+			emit(" end")
+			sp = sp + 5
+		end,
+
 		[0x60] = function() -- iadd
 			emit("stack", sp-2, " = stack", sp-2, " + stack", sp-1)
 			sp = sp - 1
@@ -469,7 +481,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x62] = function() -- fadd
-			emit("stack", sp-2, " = ffi.cast('float', stack", sp-2, " + stack", sp-1, ")")
+			emit("stack", sp-2, " = stack", sp-2, " + stack", sp-1)
 			sp = sp - 1
 		end,
 
@@ -486,6 +498,11 @@ local function compile_method(climp, analysis, mimpl)
 		[0x65] = function() -- lsub
 			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " - stack", sp-2, ")")
 			sp = sp - 2
+		end,
+
+		[0x66] = function() -- fsub
+			emit("stack", sp-2, " = stack", sp-2, " - stack", sp-1)
+			sp = sp - 1
 		end,
 
 		[0x68] = function() -- imul
@@ -516,6 +533,11 @@ local function compile_method(climp, analysis, mimpl)
 		[0x6d] = function() -- ldiv
 			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " / stack", sp-2, ")")
 			sp = sp - 2
+		end,
+
+		[0x6e] = function() -- fdiv
+			emit("stack", sp-2, " = stack", sp-2, " / stack", sp-1)
+			sp = sp - 1
 		end,
 
 		[0x6f] = function() -- ddiv
