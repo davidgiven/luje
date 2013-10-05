@@ -24,6 +24,7 @@
     	<mkdir dir="bin"/>
 
         <javac debug="true" debuglevel="${debuglevel}" destdir="bin"
+				bootclasspath="bin"
         		source="${source}" target="${target}">
             <src path="lib"/>
         </javac>
