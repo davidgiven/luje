@@ -25,7 +25,12 @@ local constantparser = {
 		local classname = analysis.Utf8Constants[c.name_index]
 		local climp = climploader:LoadClimp(classname)
 		return Runtime.GetClassForClimp(climp)
-	end
+	end,
+
+	["CONSTANT_String"] = function(c, analysis, climploader)
+		local utf8 = analysis.Utf8Constants[c.string_index]
+		return Runtime.NewString(utf8)
+	end,
 }
 
 -- This function does the bytecode compilation. It takes the bytecode and
@@ -33,7 +38,7 @@ local constantparser = {
 -- a callable function.
 
 local function compile_method(climp, analysis, mimpl)
-	dbg("compiling: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
+	--dbg("compiling: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
 
 	local bytecode = mimpl.Code.Bytecode
 	local pos = 0
@@ -75,13 +80,19 @@ local function compile_method(climp, analysis, mimpl)
 
 	local function checkstack(pc)
 		local csp = stacksize[pc]
+		if (csp == nil) and (sp == nil) then
+			dbg("cannot determine stack size at "..pc.." of ",
+				analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor,
+				", assuming exception handler")
+			csp = 1
+		end
 		if (csp == nil) then
 			stacksize[pc] = sp
 		else
 			if (sp == nil) then
 				sp = csp
 			elseif (csp ~= sp) then
-				Utils.Throw("stack mismatch (address "..pc.." is currently "..csp..", but should be "..sp..")")
+				dbg("stack mismatch (address "..pc.." is currently "..csp..", but should be "..sp..")")
 			end
 		end
 	end
@@ -387,6 +398,10 @@ local function compile_method(climp, analysis, mimpl)
 		[0x40] = localstore_op(2, 1), -- lstore_1
 		[0x41] = localstore_op(2, 2), -- lstore_2
 		[0x42] = localstore_op(2, 3), -- lstore_3
+		[0x43] = localstore_op(1, 0), -- fstore_0
+		[0x44] = localstore_op(1, 1), -- fstore_1
+		[0x45] = localstore_op(1, 2), -- fstore_2
+		[0x46] = localstore_op(1, 3), -- fstore_3
 		[0x47] = localstore_op(2, 0), -- dstore_0
 		[0x48] = localstore_op(2, 1), -- dstore_1
 		[0x49] = localstore_op(2, 2), -- dstore_2
@@ -410,6 +425,11 @@ local function compile_method(climp, analysis, mimpl)
 			emit("-- pop")
 		end,
 
+		[0x58] = function() -- pop2
+			sp = sp - 2
+			emit("-- pop2")
+		end,
+
 		[0x59] = function() -- dup
 			sp = sp + 1
 			emit("stack", sp-1, " = stack", sp-2)
@@ -419,6 +439,17 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp - 2
 			emit("do local v2, v1 = stack", sp, ", stack", sp+1, " stack", sp, "=v1 stack", sp+1, "=v2 stack", sp+2, "=v1 end")
 			sp = sp + 3
+		end,
+
+		[0x5b] = function() -- dup_x2
+			sp = sp - 3
+			emitnonl("do local v3, v2, v1 = stack", sp, ", stack", sp+1, ", stack", sp+2)
+			emitnonl(" stack", sp, "=v1")
+			emitnonl(" stack", sp+1, "=v3")
+			emitnonl(" stack", sp+2, "=v2")
+			emitnonl(" stack", sp+3, "=v1")
+			emit(" end")
+			sp = sp + 4
 		end,
 
 		[0x5c] = function() -- dup2
@@ -435,6 +466,11 @@ local function compile_method(climp, analysis, mimpl)
 		[0x61] = function() -- ladd
 			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " + stack", sp-2, ")")
 			sp = sp - 2
+		end,
+
+		[0x62] = function() -- fadd
+			emit("stack", sp-2, " = ffi.cast('float', stack", sp-2, " + stack", sp-1, ")")
+			sp = sp - 1
 		end,
 
 		[0x63] = function() -- dadd
@@ -554,6 +590,11 @@ local function compile_method(climp, analysis, mimpl)
 			emit("stack", sp-1, " = tonumber(ffi.cast('int32_t', stack", sp-1, "))")
 		end,
 
+		[0x8d] = function() -- f2d
+			emit("stack", sp-1, " = ffi.cast('double', stack", sp-1, ")")
+			sp = sp + 1
+		end,
+
 		[0x91] = function() -- i2b
 			emit("stack", sp-1, " = tonumber(ffi.cast('uint8_t', stack", sp-1, "))")
 		end,
@@ -574,6 +615,14 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 			
 		[0x95] = function() -- fcmpl
+			sp = sp - 2
+			emitnonl("if (stack", sp, " == stack", sp+1, ") then stack", sp, " = 0 elseif ")
+			emitnonl("(stack", sp, " > stack", sp+1, ") then stack", sp, " = 1 else ")
+			emit("stack", sp, " = -1 end")
+			sp = sp + 1
+		end,
+
+		[0x96] = function() -- fcmpg
 			sp = sp - 2
 			emitnonl("if (stack", sp, " == stack", sp+1, ") then stack", sp, " = 0 elseif ")
 			emitnonl("(stack", sp, " < stack", sp+1, ") then stack", sp, " = -1 else ")
@@ -649,24 +698,36 @@ local function compile_method(climp, analysis, mimpl)
 		[0xac] = function() -- ireturn
 			sp = sp - 1
 			emit("do return stack", sp, " end")
-			sp = 0
+			sp = nil
+		end,
+
+		[0xad] = function() -- lreturn
+			sp = sp - 2
+			emit("do return stack", sp, " end")
+			sp = nil
+		end,
+
+		[0xae] = function() -- freturn
+			sp = sp - 1
+			emit("do return stack", sp, " end")
+			sp = nil
 		end,
 
 		[0xaf] = function() -- dreturn
 			sp = sp - 2
 			emit("do return stack", sp, " end")
-			sp = 0
+			sp = nil
 		end,
 
 		[0xb0] = function() -- areturn
 			sp = sp - 1
 			emit("do return stack", sp, " end")
-			sp = 0
+			sp = nil
 		end,
 
 		[0xb1] = function() -- return
 			emit("do return end")
-			sp = 0
+			sp = nil
 		end,
 
 		[0xb2] = function() -- getstatic
@@ -809,7 +870,7 @@ local function compile_method(climp, analysis, mimpl)
 		[0xbf] = function() -- athrow
 			local o = "stack"..(sp-1)
 			emit("Runtime.Throw(", o, ")")
-			sp = 0
+			sp = nil
 		end,
 
 		[0xc0] = function() -- checkcast
@@ -818,7 +879,26 @@ local function compile_method(climp, analysis, mimpl)
 			local c = constant(climp:ClimpLoader():LoadClimp(f))
 
 			local o = "stack"..(sp-1)
-			emit("runtime.CheckCast(", o, ", ", c, ")")
+			emit("if not runtime.InstanceOf(", o, ", ", c, ") then error('bad cast') end")
+		end,
+
+		[0xc1] = function() -- instanceof
+			local i = u2()
+			local f = analysis.ClassConstants[i]
+			local c = constant(climp:ClimpLoader():LoadClimp(f))
+
+			local o = "stack"..(sp-1)
+			emit(o, " = runtime.InstanceOf(", o, ", ", c, ")")
+		end,
+
+		[0xc2] = function() -- monitorenter
+			emit("-- monitorenter")
+			sp = sp - 1
+		end,
+
+		[0xc3] = function() -- monitorexit
+			emit("-- monitorexit")
+			sp = sp - 1
 		end,
 
 		[0xc6] = function() -- ifnull
@@ -845,6 +925,7 @@ local function compile_method(climp, analysis, mimpl)
 		if not opcodec then
 			Utils.Throw("unimplemented opcode 0x"..string.format("%02x", opcode))
 		end
+		emitnonl("--[[ sp=", sp, " --]] ")
 		opcodec()
 	end
 
@@ -878,7 +959,7 @@ local function compile_method(climp, analysis, mimpl)
 
 	-- Compile it.
 	
-	--dbg(table_concat(wrapper))
+	--dbg("source for: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor, "\n", table_concat(wrapper), "\n")
 	local chunk, e = load(table_concat(wrapper),
 		analysis.ThisClass.."::"..mimpl.Name..mimpl.Descriptor)
 	Utils.Check(e, "compilation failed")
@@ -972,6 +1053,7 @@ return function(climploader)
 		end,
 
 		FindStaticMethod = function(self, n)
+			--dbg("looking up ", n, " on ", analysis.ThisClass)
 			local mimpl = analysis.Methods[n]
 			if not mimpl then
 				return nil

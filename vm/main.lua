@@ -15,11 +15,8 @@ local pretty = require("pl.pretty")
 
 require("natives")
 
-local t = ClimpLoader.Default:LoadClimp("com/cowlark/luje/OTest")
+local t = ClimpLoader.Default:LoadClimp("com/cowlark/luje/Fannkuch")
 local m = t["m_main([Ljava/lang/String;)V"]
 Utils.Assert(m, "this isn't a main class")
 local r = m(t, nil)
-
-pretty.dump(r)
-pretty.dump(t)
 

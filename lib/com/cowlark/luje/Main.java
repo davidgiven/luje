@@ -88,7 +88,7 @@ public class Main
 	public static void main(String[] argv)
 	{
 		benchmark();
-		//System.out.println(intmark + " " + longmark + " " + doublemark + " " + trigmark);
-		//System.out.println(intresult + " " + longresult + " " + doubleresult + " " + trigresult);
+		System.out.println(intmark + " " + longmark + " " + doublemark + " " + trigmark);
+		System.out.println(intresult + " " + longresult + " " + doubleresult + " " + trigresult);
 	}
 }

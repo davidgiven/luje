@@ -16,6 +16,7 @@ local ClimpLoader = require("ClimpLoader")
 local native_methods = {}
 local globalhash = 0
 local classobjects = {}
+local stringobjects = {}
 
 local primitivetypes =
 {
@@ -58,6 +59,60 @@ local function New(climp)
 	return o
 end
 
+local function NewArray(kind, length)
+	local k = primitivetypes[kind]
+	Utils.Assert(k, "unsupported primitive kind ", kind)
+	local typechar, impl = unpack(k)
+
+	local classname = "["..typechar
+	local climp = ClimpLoader.Default:LoadClimp(classname)
+	local object = New(climp)
+
+	local store = ffi.new(impl.."["..tonumber(length).."]")
+
+	object.ArrayPut = function(self, index, value)
+		Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+		store[index] = value
+	end
+
+	object.ArrayGet = function(self, index)
+		Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+		return store[index]
+	end
+			
+	object.Length = function(self)
+		return length
+	end
+
+	object.store = store
+
+	return object
+end
+
+-- Creates a read-only byte[] array with data stored in the supplied string.
+
+local function NewStringArray(data)
+	local climp = ClimpLoader.Default:LoadClimp("[B")
+	local object = New(climp)
+
+	object.ArrayPut = function(self, index, value)
+		Utils.Throw("attempted write to StringArray")
+	end
+
+	object.ArrayGet = function(self, index)
+		Utils.Assert((index >= 0) and (index < #data), "array out of bounds access")
+		return string_byte(data, index+1)
+	end
+			
+	object.Length = function(self)
+		return #data
+	end
+
+	object.store = data
+
+	return object
+end
+
 return {
 	RegisterNativeMethod = function(class, name, func)
 		native_methods[class.." "..name] = func
@@ -68,34 +123,7 @@ return {
 	end,
 
 	New = New,
-
-	NewArray = function(kind, length)
-		local k = primitivetypes[kind]
-		Utils.Assert(k, "unsupported primitive kind ", kind)
-		local typechar, impl = unpack(k)
-
-		local classname = "["..typechar
-		local climp = ClimpLoader.Default:LoadClimp(classname)
-		local object = New(climp)
-
-		local store = ffi.new(impl.."["..tonumber(length).."]")
-
-		object.ArrayPut = function(self, index, value)
-			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
-			store[index] = value
-		end
-
-		object.ArrayGet = function(self, index)
-			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
-			return store[index]
-		end
-				
-		object.Length = function(self)
-			return length
-		end
-
-		return object
-	end,
+	NewArray = NewArray,
 
 	NewAArray = function(climp, length)
 		local classname = "[L"..climp:ThisClass()..";"
@@ -121,18 +149,18 @@ return {
 		return object
 	end,
 
-	CheckCast = function(o, climp)
+	InstanceOf = function(o, climp)
 		if not o then
-			return
+			return true
 		end
 		local c = o:Climp()
 		while c do
 			if (c == climp) then
-				return
+				return true
 			end
 			c = c:SuperClimp()
 		end
-		Utils.Throw("bad cast")
+		return false
 	end,
 
 	GetClassForClimp = function(climp)
@@ -143,6 +171,18 @@ return {
 			classobjects[climp] = o
 		end
 		return classobjects[climp]
+	end,
+
+	NewString = function(utf8)
+		if not stringobjects[utf8] then
+			local c = ClimpLoader.Default:LoadClimp("java/lang/String")
+			local o = New(c)
+			local a = NewStringArray(utf8)
+			o["m_<init>([BI)V"](o, a, 0)
+
+			stringobjects[utf8] = o
+		end
+		return stringobjects[utf8]
 	end
 }
 

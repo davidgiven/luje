@@ -25,9 +25,9 @@ local function LoadClimp(self, name)
 		Climp = require("Climp")
 	end
 
-	dbg("loading: ", name)
+	--dbg("loading: ", name)
 	local t
-	if string_find(name, "^%[") then
+	if string_find(name, "^[[VZBCSIJDF]") then
 		t = {
 			ThisClass = name,
 			SuperClass = "java/lang/Object",

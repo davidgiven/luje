@@ -6,10 +6,8 @@ import java.io.PrintStream;
 
 public class System
 {
-	/* FIXME dg: not supported for now, need to disable to prevent pulling in
-	 * huge chunks of the rest of the system. */
-	public static PrintStream out = null; //new PrintStream(new FileOutputStream(FileDescriptor.out));
-	public static PrintStream err = null; //new PrintStream(new FileOutputStream(FileDescriptor.err));
+	public static PrintStream out = new PrintStream(new FileOutputStream(FileDescriptor.out));
+	public static PrintStream err = new PrintStream(new FileOutputStream(FileDescriptor.err));
 	
 	public static String getProperty(String key)
 	{
