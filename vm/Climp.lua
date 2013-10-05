@@ -43,6 +43,7 @@ local function compile_method(climp, analysis, mimpl)
 	local bytecode = mimpl.Code.Bytecode
 	local pos = 0
 	local sp = 0
+	local lineno = 2 -- include line of boilerplate before code
 	local stacksize = {}
 	local output = {}
 
@@ -118,6 +119,7 @@ local function compile_method(climp, analysis, mimpl)
 	local function emit(...)
 		emitnonl(...)
 		output[#output+1] = "\n"
+		lineno = lineno + 1
 	end
 
 	-- Add a constant to the (internal, per-method) constant pool.
@@ -324,6 +326,12 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp + 2
 		end,
 
+		[0x17] = function() -- fload
+			local i = u1()
+			emit("stack", sp, " = local", i)
+			sp = sp + 1
+		end,
+
 		[0x18] = function() -- dload
 			local i = u1()
 			emit("stack", sp, " = local", i)
@@ -375,6 +383,12 @@ local function compile_method(climp, analysis, mimpl)
 		[0x37] = function() -- lstore
 			local var = u1()
 			sp = sp - 2
+			emit("local", var, " = stack", sp)
+		end,
+
+		[0x38] = function() -- fstore
+			local var = u1()
+			sp = sp - 1
 			emit("local", var, " = stack", sp)
 		end,
 
@@ -757,7 +771,7 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
-			emit("stack", sp, " = ", c, "['f_", f.Class, "::", f.Name, "']")
+			emit("stack", sp, " = ", c, ".Fields['", f.Name, "']")
 			sp = sp + f.Size
 		end,
 
@@ -767,7 +781,7 @@ local function compile_method(climp, analysis, mimpl)
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
 			sp = sp - f.Size
-			emit(c, "['f_", f.Class, "::", f.Name, "'] = stack", sp)
+			emit(c, ".Fields['", f.Name, "'] = stack", sp)
 		end,
 
 		[0xb4] = function() -- getfield
@@ -777,7 +791,7 @@ local function compile_method(climp, analysis, mimpl)
 
 			sp = sp - 1
 			nullcheck("stack"..sp)
-			emit("stack", sp, " = stack", sp, "['f_", f.Name, "']")
+			emit("stack", sp, " = stack", sp, ".Fields['", f.Name, "']")
 			sp = sp + f.Size
 		end,
 
@@ -788,7 +802,7 @@ local function compile_method(climp, analysis, mimpl)
 
 			sp = sp - f.Size - 1
 			nullcheck("stack"..sp)
-			emit("stack", sp, "['f_", f.Name, "'] = stack", sp+1)
+			emit("stack", sp, ".Fields['", f.Name, "'] = stack", sp+1)
 		end,
 
 		[0xb6] = function() -- invokevirtual
@@ -798,7 +812,7 @@ local function compile_method(climp, analysis, mimpl)
 
 			local self = "stack"..(sp-1-f.Size)
 			nullcheck(self)
-			emitnonl("do local r, e = ", self, "['m_", f.Name, f.Descriptor, "']")
+			emitnonl("do local r, e = ", self, ".Methods['", f.Name, f.Descriptor, "']")
 			methodcall(f, self)
 			sp = sp - 1
 
@@ -815,7 +829,7 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
-			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "']")
+			emitnonl("do local r, e = ", c, ".Methods['", f.Name, f.Descriptor, "']")
 			methodcall(f, "stack"..(sp-1-f.Size))
 			sp = sp - 1
 
@@ -832,7 +846,7 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
-			emitnonl("do local r, e = ", c, "['m_", f.Name, f.Descriptor, "']")
+			emitnonl("do local r, e = ", c, ".Methods['", f.Name, f.Descriptor, "']")
 			methodcall(f)
 
 			if (f.OutParams > 0) then
@@ -851,7 +865,7 @@ local function compile_method(climp, analysis, mimpl)
 
 			local self = "stack"..(sp-1-f.Size)
 			nullcheck(self)
-			emitnonl("do local r, e = ", self, "['m_", f.Name, f.Descriptor, "']")
+			emitnonl("do local r, e = ", self, ".Methods['", f.Name, f.Descriptor, "']")
 			methodcall(f, self)
 			sp = sp - 1
 
@@ -947,7 +961,7 @@ local function compile_method(climp, analysis, mimpl)
 		if not opcodec then
 			Utils.Throw("unimplemented opcode 0x"..string.format("%02x", opcode))
 		end
-		emitnonl("--[[ sp=", sp, " --]] ")
+		emitnonl("--[[ sp=", sp, " line=", lineno, " --]] ")
 		opcodec()
 	end
 
@@ -1024,6 +1038,8 @@ return function(climploader)
 	local instancemethodcache = {}
 	local superclimp
 	local constants = {}
+	local staticmethods = {}
+	local staticfields = {}
 
 	local c
 	c = {
@@ -1034,14 +1050,14 @@ return function(climploader)
 
 			for _, f in pairs(analysis.Fields) do
 				local value = 0
-				if string_find(f.Descriptor, "^[]L]") then
+				if string_find(f.Descriptor, "^[[L]") then
 					value = nil
 				end
 
 				if string_find(f.AccessFlags, " static ") then
-					rawset(c, "f_"..analysis.ThisClass.."::"..f.Name, value)
+					self.Fields[f.Name] = value
 				else
-					instancevars["f_"..f.Name] = value
+					instancevars[f.Name] = value
 				end
 			end
 
@@ -1062,7 +1078,7 @@ return function(climploader)
 
 		InitInstance = function(self, o)
 			for k, v in pairs(instancevars) do
-				rawset(o, k, v)
+				o.Fields[k] = v
 			end
 
 			if superclimp then
@@ -1111,21 +1127,18 @@ return function(climploader)
 				constants[index] = c
 			end
 			return constants[index]
-		end
+		end,
+
+		Methods = staticmethods,
+		Fields = staticfields
 	}
 
-	setmetatable(c,
+	setmetatable(staticmethods,
 		{
 			__index = function(self, k)
-				local _, _, n = string_find(k, "m_(.*)")
-				if n then
-					Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
-					local m = c:FindStaticMethod(n)
-					rawset(c, k, m)
-					return m
-				else
-					return nil
-				end
+				local m = c:FindStaticMethod(k)
+				rawset(staticmethods, k, m)
+				return m
 			end,
 		}
 	)

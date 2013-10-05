@@ -15,8 +15,8 @@ local pretty = require("pl.pretty")
 
 require("natives")
 
-local t = ClimpLoader.Default:LoadClimp("com/cowlark/luje/Main")
-local m = t["m_main([Ljava/lang/String;)V"]
+local t = ClimpLoader.Default:LoadClimp("com/cowlark/luje/LocalBench")
+local m = t.Methods["main([Ljava/lang/String;)V"]
 Utils.Assert(m, "this isn't a main class")
 local r = m(t, nil)
 

@@ -9,6 +9,7 @@ local dbg = Utils.Debug
 local Runtime = require("Runtime")
 local ffi = require("ffi")
 local string_find = string.find
+local string_byte = string.byte
 
 Runtime.RegisterNativeMethod("java/lang/Object", "hashCode()I",
 	function(self)
@@ -40,17 +41,13 @@ Runtime.RegisterNativeMethod("java/lang/Class", "getComponentType()Ljava/lang/Cl
 
 Runtime.RegisterNativeMethod("java/lang/Class", "isArray()Z",
 	function(self)
-		local climp = self.forClimp
-		local n = climp:ThisClass()
-		return not not string_find(n, "^%[")
+		return self.isArray
 	end
 )
 
 Runtime.RegisterNativeMethod("java/lang/Class", "isPrimitive()Z",
 	function(self)
-		local climp = self.forClimp
-		local n = climp:ThisClass()
-		return not not string_find(n, "^[VZBCSIJDF]$")
+		return self.isPrimitive
 	end
 )
 

@@ -1,6 +1,6 @@
 package com.cowlark.luje;
 
-public class Main
+public class FieldBench
 {
 	public static long TIME = 2000;
 	public static long STEP = 1000;

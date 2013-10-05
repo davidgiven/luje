@@ -45,7 +45,7 @@ local function LoadClimp(self, name)
 
 	-- Call the static constructor for the class.
 	
-	local m = c["m_<clinit>()V"]
+	local m = c.Methods["<clinit>()V"]
 	if m then 
 		m()
 	end

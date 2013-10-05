@@ -10,6 +10,7 @@ local dbg = Utils.Debug
 local pretty = require("pl.pretty")
 local string_byte = string.byte
 local string_find = string.find
+local string_sub = string.sub
 local table_concat = table.concat
 local ClimpLoader = require("ClimpLoader")
 
@@ -34,27 +35,26 @@ local function New(climp)
 	local hash = globalhash
 	globalhash = globalhash + 1
 
+	local methods = {}
+	setmetatable(methods,
+		{
+			__index = function(self, k)
+				local m = climp:FindMethod(k)
+				rawset(methods, k, m)
+				return m
+			end
+		}
+	)
+
+	local fields = {}
+
 	local o = {
 		Climp = function() return climp end,
 		Hash = function() return hash end,
+		Methods = methods,
+		Fields = fields
 	}
 	climp:InitInstance(o)
-
-	setmetatable(o,
-		{
-			__index = function(self, k)
-				local _, _, n = string_find(k, "m_(.*)")
-				if n then
-					Utils.Assert(n, "table slot for method ('", k, "') does not begin with m_")
-					local m = climp:FindMethod(n)
-					rawset(o, k, m)
-					return m
-				else
-					return nil
-				end
-			end,
-		}
-	)
 
 	return o
 end
@@ -62,7 +62,7 @@ end
 local function NewArray(kind, length)
 	local k = primitivetypes[kind]
 	Utils.Assert(k, "unsupported primitive kind ", kind)
-	local typechar, impl = unpack(k)
+	local typechar, impl = k[1], k[2]
 
 	local classname = "["..typechar
 	local climp = ClimpLoader.Default:LoadClimp(classname)
@@ -167,7 +167,10 @@ return {
 		if not classobjects[climp] then
 			local c = ClimpLoader.Default:LoadClimp("java/lang/Class")
 			local o = New(c)
+			local n = climp:ThisClass()
 			o.forClimp = climp
+			o.isArray = not not string_find(n, "^%[")
+			o.isPrimitive = not not string_find(n, "^[VZBCSIJDF]$")
 			classobjects[climp] = o
 		end
 		return classobjects[climp]
@@ -178,7 +181,7 @@ return {
 			local c = ClimpLoader.Default:LoadClimp("java/lang/String")
 			local o = New(c)
 			local a = NewStringArray(utf8)
-			o["m_<init>([BI)V"](o, a, 0)
+			o.Methods["<init>([BI)V"](o, a, 0)
 
 			stringobjects[utf8] = o
 		end
