@@ -7,5 +7,11 @@
 
 export LUA_CPATH='/usr/lib/'$(gcc -dumpmachine)'/lua/5.1/?.so;;'
 export LUA_PATH='/usr/share/lua/5.1/?.lua;;'
-exec luajit vm/main.lua "$@"
+
+# If you want to use a different LuaJIT, change it here.
+
+#luajit=/home/dg/src/luajit-2.0/src/luajit
+luajit=luajit
+
+exec $luajit vm/main.lua "$@"
 

@@ -47,6 +47,9 @@ supplied Java library and sample programs do. Build them with:
 
     ant
 
+You may also need to edit the luje shell script and point it at your Lua
+package installation, if you keep it somewhere odd. (It's currently set up for
+Debian.)
 
 
 USAGE
