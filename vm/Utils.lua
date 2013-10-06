@@ -1,5 +1,17 @@
 local ServerDir = ServerDir
 
+--- Halts with a user error (no stack trace).
+
+local function UserError(...)
+	local args = {}
+	for i = 1, select("#", ...) do
+		local a = select(i, ...)
+		args[#args+1] = tostring(a)
+	end
+	io.stderr:write("luje: ", table.concat(args), "\n")
+	os.exit(1)
+end
+
 --- Halts with a fatal error.
 
 local function FatalError(...)
@@ -213,6 +225,7 @@ return
 {
 	OpenFile = OpenFile,
 	LoadFile = LoadFile,
+	UserError = UserError,
 	FatalError = FatalError,
 	Debug = Debug,
 	Check = Check,

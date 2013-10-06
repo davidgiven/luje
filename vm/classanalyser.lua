@@ -8,7 +8,6 @@ local Utils = require("Utils")
 local classreader = require("classreader")
 local String = require("String")
 local dbg = Utils.Debug
-local pretty = require("pl.pretty")
 local string_byte = string.byte
 local string_find = string.find
 local table_concat = table.concat

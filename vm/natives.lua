@@ -51,6 +51,13 @@ Runtime.RegisterNativeMethod("java/lang/Class", "isPrimitive()Z",
 	end
 )
 
+Runtime.RegisterNativeMethod("java/lang/Class", "getName()Ljava/lang/String;",
+	function(self)
+		local n = self.forClimp:ThisClass()
+		return Runtime.NewString(n)
+	end
+)
+
 --- Maths -------------------------------------------------------------------
 
 Runtime.RegisterNativeMethod("java/lang/Math", "sqrt(D)D", math.sqrt)

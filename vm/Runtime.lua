@@ -7,10 +7,10 @@
 local ffi = require("ffi")
 local Utils = require("Utils")
 local dbg = Utils.Debug
-local pretty = require("pl.pretty")
 local string_byte = string.byte
 local string_find = string.find
 local string_sub = string.sub
+local string_char = string.char
 local table_concat = table.concat
 local ClimpLoader = require("ClimpLoader")
 
@@ -186,6 +186,16 @@ return {
 			stringobjects[utf8] = o
 		end
 		return stringobjects[utf8]
+	end,
+
+	FromString = function(s)
+		local ss = {}
+		local len = s.Methods["length()I"](s)
+		for i=0, len-1 do
+			local c = s.Methods["charAt(I)C"](s, i)
+			ss[#ss+1] = string_char(c)
+		end
+		return table_concat(ss)
 	end
 }
 

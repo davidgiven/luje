@@ -9,13 +9,6 @@ public class OTest
 
 	public static void main(String[] argv)
 	{
-		try
-		{
-			throw new IOException();
-		}
-		catch (IOException e)
-		{
-			System.out.println("caught!");
-		}
+		throw new NullPointerException();
 	}
 }

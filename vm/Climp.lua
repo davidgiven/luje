@@ -7,7 +7,6 @@
 local Utils = require("Utils")
 local dbg = Utils.Debug
 local Runtime = require("Runtime")
-local pretty = require("pl.pretty")
 local string_byte = string.byte
 local string_find = string.find
 local table_concat = table.concat
