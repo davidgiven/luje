@@ -1,0 +1,112 @@
+                                 LUJE v0.1
+                                 =========
+                                  
+                         Copyright (C) 2013 David Given
+                                 2013-10-06
+            
+            
+                                 
+INTRODUCTION
+============
+
+Luje is a toy Java virtual machine written in pure Lua. It works by translating
+Java bytecode into Lua on-the-fly, and then using Mike Pall's LuaJIT to run the
+result. On amd64 it seems to run most programs at about 50-75% of the speed of
+Hotspot, and some carefully chosen non-representative microbenchmarks are
+actually faster than Hotspot. That's not bad given the whole thing is under
+3000 lines of code.
+
+It comes with a rather massacred copy of the Apache Harmony standard library
+(some of the things that don't work have been stubbed out).
+
+Right now luje is very, very new and many things don't work --- for example,
+not all the Java bytecodes have been implemented (I've been doing them on as
+as-needed basis). Plus the native bindings are very immature. However adding
+these is really easy; let me know if you need anything.
+
+
+
+SETUP
+=====
+
+To use Luje you will need:
+
+  - an installation of LuaJIT 2, any reasonably recent version; this is
+	available here:
+
+    http://luajit.org/
+
+  - a JDK and ant (for building the Java side of things).
+
+I wrote Luje on a Linux machine. I don't see any reason why it wouldn't work on
+Windows, given a bit of fiddling, but I'm afraid you're on your own there.
+(Let me know if you get it to work.)
+
+Luje itself doesn't need compiling, as it's just a set of Lua scripts, but the
+supplied Java library and sample programs do. Build them with:
+
+    ant
+
+
+
+USAGE
+=====
+
+To use luje, ensure that the Java main class you want to run is in the bin
+directory (the easiest way is to add the Java source file to the lib directory
+and run ant), and then invoke it with (for example):
+
+    ./luje com.cowlark.luje.LocalBench
+
+If all goes according to plan the program will run.
+
+
+
+BUGS
+====
+
+Ho ho ho.
+
+  - lots of things are barely tested, if at all
+  - not all bytecodes are implemented, including 'wide'
+  - Java native bindings are rather minimal
+  - can't pass arguments into a main function yet
+  - exceptions don't get stack traces
+  - no test suite
+  - conversion from Lua to Java strings and back assume ASCII
+  - Strings are deadly slow
+
+...and many, many, *many* more.
+
+There's a public bug tracker at http://cowlark.com/luje. Please file bugs. (You
+can either do this anonymously or create an account.)
+
+
+
+MORE INFORMATION
+================
+
+Luje's home is at http://cowlark.com/luje.
+
+Alternatively, you will find a copy of the website (in easier-to-read more-or-
+less plain text format) in the doc directory.
+
+
+
+THE AUTHOR
+==========
+
+Luje was written by me, David Given. You may contact me at dg@cowlark.com,
+or visit my website at http://www.cowlark.com. There may or may not be
+anything interesting there.
+
+
+
+LICENSING
+=========
+
+Luje is licensed under the Simplified BSD license. See COPYING.luje for the
+full text. It also includes big chunks of the Apache Harmony Java run time
+library. This is licensed under the Apache 2.0 license; see COPYING.harmony for
+the full text.
+
