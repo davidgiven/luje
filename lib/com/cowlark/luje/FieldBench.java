@@ -3,7 +3,7 @@ package com.cowlark.luje;
 public class FieldBench
 {
 	public static long TIME = 2000;
-	public static long STEP = 1000;
+	public static long STEP = 10000;
 
 	public static abstract class Benchmark
 	{
