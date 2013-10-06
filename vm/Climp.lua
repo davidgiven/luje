@@ -44,7 +44,9 @@ local function compile_method(climp, analysis, mimpl)
 	local pos = 0
 	local sp = 0
 	local lineno = 2 -- include line of boilerplate before code
-	local stacksize = {}
+	local stacksize = {} -- size of stack at each bytecode
+	local entrypoints = {} -- any additional entrypoints waiting compilation
+	local seenopcodes = {} -- opcodes which we've already compiled
 	local output = {}
 
 	local function u1()
@@ -79,32 +81,36 @@ local function compile_method(climp, analysis, mimpl)
 		return ItoSI(i)
 	end
 
+	-- Ensures that the current stack pointer matches any recorded stack for
+	-- this address.
+	
 	local function checkstack(pc)
 		local csp = stacksize[pc]
-		if (csp == nil) and (sp == nil) then
-			dbg("cannot determine stack size at "..pc.." of ",
-				analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor,
-				", assuming exception handler")
-			csp = 1
-		end
 		if (csp == nil) then
 			stacksize[pc] = sp
-		else
-			if (sp == nil) then
-				sp = csp
-			elseif (csp ~= sp) then
-				dbg("stack mismatch (address "..pc.." is currently "..csp..", but should be "..sp..")")
-			end
+		elseif (csp ~= sp) then
+			dbg("stack mismatch (address "..pc.." is currently "..csp..", but should be "..sp..")")
 		end
 	end
 
-	local function setstack(pc, newsp)
-		if stacksize[pc] then
-			if (stacksize[pc] ~= newsp) then
-				Utils.Throw("stack mismatch in target (address "..pc.." is currently "..stacksize[pc]..", but should be "..newsp..")")
+	-- Add a new entrypoint, recording the stack that it should have.
+	
+	local function addentrypoint(pc, newsp)
+		if not newsp then
+			newsp = sp
+		end
+
+		local csp = stacksize[pc]
+		if (csp ~= nil) then
+			if (csp ~= newsp) then
+				Utils.Throw("stack mismatch in target (address "..pc.." is currently "..csp..", but should be "..newsp..")")
 			end
 		else
 			stacksize[pc] = newsp
+		end
+
+		if not seenopcodes[pc] then
+			entrypoints[pc] = true
 		end
 	end
 
@@ -248,7 +254,7 @@ local function compile_method(climp, analysis, mimpl)
 			local delta = s2() - 3
 			sp = sp - 2
 			emit("if (stack", sp, " ", cmp, " stack", sp+1, ") then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end
 	end
 
@@ -677,42 +683,42 @@ local function compile_method(climp, analysis, mimpl)
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " == 0) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 
 		[0x9a] = function() -- ifeq
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " ~= 0) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 
 		[0x9b] = function() -- iflt
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " < 0) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 
 		[0x9c] = function() -- ifge
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " >= 0) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 
 		[0x9d] = function() -- ifgt
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " > 0) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 
 		[0x9e] = function() -- ifle
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " <= 0) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 
 		[0x9f] = ifcmp_op("=="), -- if_icmpeq
@@ -727,7 +733,7 @@ local function compile_method(climp, analysis, mimpl)
 		[0xa7] = function() -- goto
 			local delta = s2() - 3
 			emit("goto pc_", pos+delta)
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 			sp = nil
 		end,
 
@@ -941,28 +947,56 @@ local function compile_method(climp, analysis, mimpl)
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " == nil) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 
 		[0xc7] = function() -- ifnonnull
 			local delta = s2() - 3
 			sp = sp - 1
 			emit("if (stack", sp, " ~= nil) then goto pc_", pos+delta, " end")
-			setstack(pos+delta, sp)
+			addentrypoint(pos+delta, sp)
 		end,
 	}
 
-	while (pos < #bytecode) do
-		checkstack(pos)
-		output[#output+1] = "::pc_"..pos..":: "
+	-- Add the main code entrypoint.
 
-		local opcode = u1()
-		local opcodec = opcodemap[opcode]
-		if not opcodec then
-			Utils.Throw("unimplemented opcode 0x"..string.format("%02x", opcode))
+	addentrypoint(0, 0)
+
+	while true do
+		-- Fetch the next entrypoint.
+
+		pos = next(entrypoints)
+		if (pos == nil) then
+			break
 		end
-		emitnonl("--[[ sp=", sp, " line=", lineno, " --]] ")
-		opcodec()
+		entrypoints[pos] = nil
+
+		if not seenopcodes[pos] then
+			emit("-- new entrypoint")
+			sp = stacksize[pos]
+
+			while (sp ~= nil) do
+				if seenopcodes[pos] then
+					-- Whups! This opcode has already been compiled. Rather
+					-- than compile it again, jump to the original version.
+					emit("goto pc_", pos)
+					addentrypoint(pos, sp)
+					break
+				end
+
+				seenopcodes[pos] = true
+				checkstack(pos)
+				output[#output+1] = "::pc_"..pos..":: "
+
+				local opcode = u1()
+				local opcodec = opcodemap[opcode]
+				if not opcodec then
+					Utils.Throw("unimplemented opcode 0x"..string.format("%02x", opcode))
+				end
+				emitnonl("--[[ sp=", sp, " line=", lineno, " --]] ")
+				opcodec()
+			end
+		end
 	end
 
 	-- Emit function epilogue.
