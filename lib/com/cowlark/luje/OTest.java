@@ -1,6 +1,7 @@
 package com.cowlark.luje;
 
 import java.util.*;
+import java.io.*;
 
 public class OTest
 {
@@ -8,7 +9,13 @@ public class OTest
 
 	public static void main(String[] argv)
 	{
-		for (float i=0; i<10; i++)
-			System.out.println("i="+i);
+		try
+		{
+			throw new IOException();
+		}
+		catch (IOException e)
+		{
+			System.out.println("caught!");
+		}
 	}
 }

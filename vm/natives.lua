@@ -97,6 +97,14 @@ Runtime.RegisterNativeMethod("java/lang/System", "arraycopyImpl(Ljava/lang/Objec
 	end
 )
 
+--- Exceptions --------------------------------------------------------------
+
+Runtime.RegisterNativeMethod("java/lang/Throwable", "fillInStackTrace()Ljava/lang/Throwable;",
+	function(self)
+		return self
+	end
+)
+
 --- System bindings ---------------------------------------------------------
 
 Runtime.RegisterNativeMethod("java/io/FileDescriptor", "getStdInDescriptor()J",

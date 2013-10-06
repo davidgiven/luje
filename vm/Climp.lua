@@ -170,6 +170,13 @@ local function compile_method(climp, analysis, mimpl)
 		emitnonl(") ")
 	end
 
+	-- Emits code to check whether an exception is thrown. Note that the pc
+	-- is, at this point, *after* the instruction that threw the exception.
+	
+	local function checkexception()
+		emit("if e then epc=", pos-1, " goto exceptionhandler end")
+	end
+
 	-- Emit the function prologue.
 	
 	emitnonl("function(")
@@ -209,6 +216,9 @@ local function compile_method(climp, analysis, mimpl)
 		emit("local local", i-1)
 	end
 
+	-- Internal variables used for exception handling.
+	emit("local _, e, epc")
+
 	-- Common opcodes.
 	
 	local function pushconst_op(size, value)
@@ -222,7 +232,8 @@ local function compile_method(climp, analysis, mimpl)
 		return function()
 			sp = sp - (2+size)
 			nullcheck("stack"..sp)
-			emit("stack", sp, ":ArrayPut(stack", sp+1, ", stack", sp+2, ")")
+			emit("_, e = stack", sp, ":ArrayPut(stack", sp+1, ", stack", sp+2, ")")
+			checkexception()
 		end
 	end
 
@@ -230,7 +241,8 @@ local function compile_method(climp, analysis, mimpl)
 		return function()
 			sp = sp - 2
 			nullcheck("stack"..sp)
-			emit("stack", sp, " = stack", sp, ":ArrayGet(stack", sp+1, ")")
+			emit("stack", sp, ", e = stack", sp, ":ArrayGet(stack", sp+1, ")")
+			checkexception()
 			sp = sp + size
 		end
 	end
@@ -818,16 +830,17 @@ local function compile_method(climp, analysis, mimpl)
 
 			local self = "stack"..(sp-1-f.Size)
 			nullcheck(self)
-			emitnonl("do local r, e = ", self, ".Methods['", f.Name, f.Descriptor, "']")
-			methodcall(f, self)
-			sp = sp - 1
 
 			if (f.OutParams > 0) then
-				emitnonl("stack", sp, " = r ")
-				sp = sp + f.OutParams
+				emitnonl(self)
+			else
+				emitnonl("_")
 			end
 
-			emit("end")
+			emitnonl(", e = ", self, ".Methods['", f.Name, f.Descriptor, "']")
+			methodcall(f, self)
+			checkexception()
+			sp = sp - 1 + f.OutParams
 		end,
 
 		[0xb7] = function() -- invokespecial
@@ -835,16 +848,17 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
-			emitnonl("do local r, e = ", c, ".Methods['", f.Name, f.Descriptor, "']")
-			methodcall(f, "stack"..(sp-1-f.Size))
-			sp = sp - 1
-
+			local self = "stack"..(sp-1-f.Size)
 			if (f.OutParams > 0) then
-				emitnonl("stack", sp, " = r ")
-				sp = sp + f.OutParams
+				emitnonl(self)
+			else
+				emitnonl("_")
 			end
 
-			emit("end")
+			emitnonl(", e = ", c, ".Methods['", f.Name, f.Descriptor, "']")
+			methodcall(f, self)
+			checkexception()
+			sp = sp - 1 + f.OutParams
 		end,
 
 		[0xb8] = function() -- invokestatic
@@ -852,15 +866,16 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
-			emitnonl("do local r, e = ", c, ".Methods['", f.Name, f.Descriptor, "']")
-			methodcall(f)
-
 			if (f.OutParams > 0) then
-				emitnonl("stack", sp, " = r ")
-				sp = sp + f.OutParams
+				emitnonl("stack", sp-f.Size)
+			else
+				emitnonl("_")
 			end
 
-			emit("end")
+			emitnonl(", e = ", c, ".Methods['", f.Name, f.Descriptor, "']")
+			methodcall(f)
+			checkexception()
+			sp = sp + f.OutParams
 		end,
 
 		[0xb9] = function() -- invokeinterface
@@ -871,16 +886,17 @@ local function compile_method(climp, analysis, mimpl)
 
 			local self = "stack"..(sp-1-f.Size)
 			nullcheck(self)
-			emitnonl("do local r, e = ", self, ".Methods['", f.Name, f.Descriptor, "']")
-			methodcall(f, self)
-			sp = sp - 1
 
 			if (f.OutParams > 0) then
-				emitnonl("stack", sp, " = r ")
-				sp = sp + f.OutParams
+				emitnonl(self)
+			else
+				emitnonl("_")
 			end
 
-			emit("end")
+			emitnonl(", e = ", self, ".Methods['", f.Name, f.Descriptor, "']")
+			methodcall(f, self)
+			checkexception()
+			sp = sp - 1 + f.OutParams
 		end,
 
 		[0xbb] = function() -- new
@@ -888,30 +904,35 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.ClassConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f))
 
-			emit("stack", sp, " = runtime.New(", c, ")")
+			emit("stack", sp, ", e = runtime.New(", c, ")")
+			checkexception()
 			sp = sp + 1
 		end,
 
 		[0xbc] = function() -- newarray
 			local i = u1()
-			emit("stack", sp-1, " = runtime.NewArray(", i, ", stack", sp-1, ")")
+			emit("stack", sp-1, ", e = runtime.NewArray(", i, ", stack", sp-1, ")")
+			checkexception()
 		end,
 
 		[0xbd] = function() -- anewarray
 			local i = u2()
 			local f = analysis.ClassConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f))
-			emit("stack", sp-1, " = runtime.NewAArray(", c, ", stack", sp-1, ")")
+			emit("stack", sp-1, ", e = runtime.NewAArray(", c, ", stack", sp-1, ")")
+			checkexception()
 		end,
 
 		[0xbe] = function() -- arraylength
 			nullcheck("stack"..(sp-1))
-			emit("stack", (sp-1), " = stack", (sp-1), ":Length()")
+			emit("stack", (sp-1), ", e = stack", (sp-1), ":Length()")
+			checkexception()
 		end,
 
 		[0xbf] = function() -- athrow
 			local o = "stack"..(sp-1)
-			emit("Runtime.Throw(", o, ")")
+			emit("e = ", o)
+			checkexception()
 			sp = nil
 		end,
 
@@ -961,6 +982,24 @@ local function compile_method(climp, analysis, mimpl)
 	-- Add the main code entrypoint.
 
 	addentrypoint(0, 0)
+	emit("goto pc_0")
+
+	-- Add the exception handler.
+	
+	emit("::exceptionhandler::")
+	emit("stack0 = e")
+	for _, t in ipairs(mimpl.Code.ExceptionTable) do
+		emitnonl("if (epc>=", t.start_pc, ") and (epc<", t.end_pc, ") ")
+		if (t.catch_type ~= 0) then
+			local f = analysis.ClassConstants[t.catch_type]
+			local c = constant(climp:ClimpLoader():LoadClimp(f))
+
+			emitnonl("and runtime.InstanceOf(e, ", c, ") ")
+		end
+		emit("then goto pc_", t.handler_pc, " end")
+		addentrypoint(t.handler_pc, 1)
+	end
+	emit("do return nil, e end")
 
 	while true do
 		-- Fetch the next entrypoint.

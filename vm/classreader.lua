@@ -276,7 +276,7 @@ local function loadclass(classdata)
 	-- parse
 	--
 	for _, e in ipairs({"LocalVariableTypeTable", "StackMapTable", "Signature",
-			"Exceptions", "RuntimeVisibleAnnotations"}) do
+			"RuntimeVisibleAnnotations"}) do
 		attribute_reader[e] = function() return {} end
 	end
 
