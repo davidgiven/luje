@@ -74,9 +74,9 @@ via a method call.
 				<tr>
 					<th></th>
 					<th>LocalBench<br/>(luje)</th>
-					<th>LocalBench<br/>(Hotspot)</th>
+					<th>LocalBench<br/>(Zero)</th>
 					<th>FieldBench<br/>(luje)</th>
-					<th>FieldBench<br/>(Hotspot)</th>
+					<th>FieldBench<br/>(Zero)</th>
 				</tr>
 				<tr>
 					<th align='right'>integer</th>
