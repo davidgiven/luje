@@ -111,6 +111,8 @@ via a method call.
 	</tr>
 </table>
 
+(Larger is better.)
+
 There's plenty more optimisation that can be done --- avoiding hash table
 accesses for field and method calls would be my favourite --- but it's already
 looking extremely promising. The memory footprint is a tiny fraction the size
