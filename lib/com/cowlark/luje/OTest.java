@@ -5,10 +5,9 @@ import java.io.*;
 
 public class OTest
 {
-	static Object result;
-
 	public static void main(String[] argv)
 	{
-		throw new NullPointerException();
+		int[] array = new int[5];
+		System.out.println(""+array[10]);
 	}
 }

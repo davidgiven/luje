@@ -146,7 +146,7 @@ local function compile_method(climp, analysis, mimpl)
 	-- Emit a check for null for the specified variable.
 	
 	local function nullcheck(v)
-		emitnonl("do local nullcheck = ", v, " end ")
+		emitnonl("if (", v, " == nil) then goto nullpointer end ")
 	end
 
 	-- Perform a method call.
@@ -232,7 +232,7 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp - (2+size)
 			nullcheck("stack"..sp)
 			emit("_, e = stack", sp, ":ArrayPut(stack", sp+1, ", stack", sp+2, ")")
-			--checkexception()
+			checkexception()
 		end
 	end
 
@@ -241,7 +241,7 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp - 2
 			nullcheck("stack"..sp)
 			emit("stack", sp, ", e = stack", sp, ":ArrayGet(stack", sp+1, ")")
-			--checkexception()
+			checkexception()
 			sp = sp + size
 		end
 	end
@@ -1017,6 +1017,12 @@ local function compile_method(climp, analysis, mimpl)
 		addentrypoint(t.handler_pc, 1)
 	end
 	emit("do return nil, e end")
+
+	-- Add the null pointer handler.
+	
+	emit("::nullpointer::")
+	emit("e = runtime.NullPointerException()")
+	emit("goto exceptionhandler")
 
 	while true do
 		-- Fetch the next entrypoint.

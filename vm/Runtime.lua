@@ -59,6 +59,13 @@ local function New(climp)
 	return o
 end
 
+local function simpleconstructor(n)
+	local c = ClimpLoader.Default:LoadClimp(n)
+	local o = New(c)
+	o.Methods["<init>()V"](o)
+	return o
+end
+
 local function NewArray(kind, length)
 	local k = primitivetypes[kind]
 	Utils.Assert(k, "unsupported primitive kind ", kind)
@@ -71,12 +78,16 @@ local function NewArray(kind, length)
 	local store = ffi.new(impl.."["..tonumber(length).."]")
 
 	object.ArrayPut = function(self, index, value)
-		Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+		if (index < 0) or (index >= length) then
+			return nil, simpleconstructor("java/lang/ArrayIndexOutOfBoundsException")
+		end
 		store[index] = value
 	end
 
 	object.ArrayGet = function(self, index)
-		Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+		if (index < 0) or (index >= length) then
+			return nil, simpleconstructor("java/lang/ArrayIndexOutOfBoundsException")
+		end
 		return store[index]
 	end
 			
@@ -100,7 +111,9 @@ local function NewStringArray(data)
 	end
 
 	object.ArrayGet = function(self, index)
-		Utils.Assert((index >= 0) and (index < #data), "array out of bounds access")
+		if (index < 0) or (index >= #data) then
+			return nil, simpleconstructor("java/lang/ArrayIndexOutOfBoundsException")
+		end
 		return string_byte(data, index+1)
 	end
 			
@@ -133,12 +146,16 @@ return {
 		local store = {}
 
 		object.ArrayPut = function(self, index, value)
-			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+			if (index < 0) or (index >= length) then
+				return nil, simpleconstructor("java/lang/ArrayIndexOutOfBoundsException")
+			end
 			store[index] = value
 		end
 
 		object.ArrayGet = function(self, index)
-			Utils.Assert((index >= 0) and (index < length), "array out of bounds access")
+			if (index < 0) or (index >= length) then
+				return nil, simpleconstructor("java/lang/ArrayIndexOutOfBoundsException")
+			end
 			return store[index]
 		end
 			
@@ -196,6 +213,10 @@ return {
 			ss[#ss+1] = string_char(c)
 		end
 		return table_concat(ss)
-	end
+	end,
+	
+	NullPointerException = function()
+		return simpleconstructor("java/lang/NullPointerException")
+	end,
 }
 
