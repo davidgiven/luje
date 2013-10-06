@@ -75,7 +75,13 @@ local function NewArray(kind, length)
 	local climp = ClimpLoader.Default:LoadClimp(classname)
 	local object = New(climp)
 
-	local store = ffi.new(impl.."["..tonumber(length).."]")
+	local init
+	if (length == 0) then
+		init = {}
+	else
+		init = {0}
+	end
+	local store = ffi.new(impl.."["..tonumber(length).."]", init)
 
 	object.ArrayPut = function(self, index, value)
 		if (index < 0) or (index >= length) then
