@@ -147,10 +147,10 @@ Another way of getting the version under development is by
 checking out the source repository using <a href="http://fossil-scm.org">the
 Fossil DVCS</a>. Use the following commands:
 
-<verbatim>fossil clone http://cowlark.com/luje luje.fossil
-mkdir calculon
-cd calculon
-fossil open ../calculon.fossil
+<verbatim>mkdir luje
+cd luje
+fossil clone http://cowlark.com/luje luje.fossil
+fossil open luje.fossil
 </verbatim>
 
 You will need LuaJIT 2; it doesn't work on stock Lua, or on LuaJIT 1.
