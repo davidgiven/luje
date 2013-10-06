@@ -126,11 +126,18 @@ Runtime.RegisterNativeMethod("org/apache/harmony/luni/platform/OSMemory", "isLit
 
 ffi.cdef([[
 	extern int write(int fd, const void* buf, size_t count);
+	extern int close(int fd);
 ]])
 
 Runtime.RegisterNativeMethod("org/apache/harmony/luni/platform/OSFileSystem", "writeImpl(J[BII)J",
 	function(self, fd, data, offset, length)
 		local store = ffi.cast('int8_t*', data.store)
 		return ffi.C.write(fd, store+offset, length)
+	end
+)
+
+Runtime.RegisterNativeMethod("org/apache/harmony/luni/platform/OSFileSystem", "closeImpl(J)I",
+	function(self, fd)
+		return ffi.C.close(fd)
 	end
 )

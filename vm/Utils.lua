@@ -191,6 +191,24 @@ local function Throw(e)
 	error(e)
 end
 
+--- Returns the smallest key in a table.
+--
+--   t: table
+
+local function FindSmallestKey(t)
+	local c = next(t)
+	if not c then
+		return nil
+	end
+
+	for k in pairs(t) do
+		if (k < c) then
+			c = k
+		end
+	end
+	return c
+end
+
 return
 {
 	OpenFile = OpenFile,
@@ -204,4 +222,5 @@ return
 	Unindent = Unindent,
 	Stringify = Stringify,
 	Throw = Throw,
+	FindSmallestKey = FindSmallestKey
 }

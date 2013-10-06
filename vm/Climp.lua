@@ -233,7 +233,7 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp - (2+size)
 			nullcheck("stack"..sp)
 			emit("_, e = stack", sp, ":ArrayPut(stack", sp+1, ", stack", sp+2, ")")
-			checkexception()
+			--checkexception()
 		end
 	end
 
@@ -242,7 +242,7 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp - 2
 			nullcheck("stack"..sp)
 			emit("stack", sp, ", e = stack", sp, ":ArrayGet(stack", sp+1, ")")
-			checkexception()
+			--checkexception()
 			sp = sp + size
 		end
 	end
@@ -587,8 +587,18 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp - 1
 		end,
 
+		[0x71] = function() -- lrem
+			sp = sp - 4
+			emit("stack", sp, " = ffi.cast('int64_t', stack", sp, " % stack", sp+2, ")")
+			sp = sp + 2
+		end,
+
 		[0x74] = function() -- ineg
 			emit("stack", sp-1, " = tonumber(ffi.cast('int32_t', -stack", sp-1, "))")
+		end,
+
+		[0x75] = function() -- lneg
+			emit("stack", sp-2, " = ffi.cast('int64_t', -stack", sp-2, ")")
 		end,
 
 		[0x78] = function() -- ishl
@@ -681,6 +691,14 @@ local function compile_method(climp, analysis, mimpl)
 			emitnonl("if (stack", sp, " == stack", sp+1, ") then stack", sp, " = 0 elseif ")
 			emitnonl("(stack", sp, " < stack", sp+1, ") then stack", sp, " = -1 else ")
 			emit("stack", sp, " = 1 end")
+			sp = sp + 1
+		end,
+
+		[0x97] = function() -- dcmpl
+			sp = sp - 4
+			emitnonl("if (stack", sp, " == stack", sp+2, ") then stack", sp, " = 0 elseif ")
+			emitnonl("(stack", sp, " > stack", sp+2, ") then stack", sp, " = 1 else ")
+			emit("stack", sp, " = -1 end")
 			sp = sp + 1
 		end,
 
@@ -1004,7 +1022,7 @@ local function compile_method(climp, analysis, mimpl)
 	while true do
 		-- Fetch the next entrypoint.
 
-		pos = next(entrypoints)
+		pos = Utils.FindSmallestKey(entrypoints)
 		if (pos == nil) then
 			break
 		end
