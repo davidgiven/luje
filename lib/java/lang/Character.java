@@ -3042,16 +3042,16 @@ public final class Character implements Serializable, Comparable<Character> {
      * @return {@code true} if {@code c} is a digit; {@code false}
      *         otherwise.
      */
-//    public static boolean isDigit(char c) {
-//        // Optimized case for ASCII
-//        if ('0' <= c && c <= '9') {
-//            return true;
-//        }
+    public static boolean isDigit(char c) {
+        // Optimized case for ASCII
+        if ('0' <= c && c <= '9') {
+            return true;
+        }
 //        if (c < 1632) {
-//            return false;
+            return false;
 //        }
 //        return getType(c) == DECIMAL_DIGIT_NUMBER;
-//    }
+    }
     
     /**
      * Indicates whether the specified code point is a digit.
@@ -3228,16 +3228,16 @@ public final class Character implements Serializable, Comparable<Character> {
      *            the character to check.
      * @return {@code true} if {@code c} is a letter; {@code false} otherwise.
      */
-//    public static boolean isLetter(char c) {
-//        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')) {
-//            return true;
-//        }
+    public static boolean isLetter(char c) {
+        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')) {
+            return true;
+        }
 //        if (c < 128) {
-//            return false;
+            return false;
 //        }
 //        int type = getType(c);
 //        return type >= UPPERCASE_LETTER && type <= OTHER_LETTER;
-//    }
+    }
     
     /**
      * Indicates whether the specified code point is a letter.
@@ -3544,14 +3544,14 @@ public final class Character implements Serializable, Comparable<Character> {
      * @return if {@code c} is an upper case character then its lower case
      *         counterpart, otherwise just {@code c}.
      */
-//    public static char toLowerCase(char c) {
-//        // Optimized case for ASCII
-//        if ('A' <= c && c <= 'Z') {
-//            return (char) (c + ('a' - 'A'));
-//        }
-//        if (c < 192) {// || c == 215 || (c > 222 && c < 256)) {
-//            return c;
-//        } 
+    public static char toLowerCase(char c) {
+        // Optimized case for ASCII
+        if ('A' <= c && c <= 'Z') {
+            return (char) (c + ('a' - 'A'));
+        }
+        if (c < 192) {// || c == 215 || (c > 222 && c < 256)) {
+            return c;
+        } 
 //        if (c<1000) {
 //            return (char)lowercaseValuesCache[c-192];
 //        }
@@ -3573,8 +3573,8 @@ public final class Character implements Serializable, Comparable<Character> {
 //                return (char) (c + mapping);
 //            }
 //        }
-//        return c;
-//    }
+        return c;
+    }
     
     /**
      * Returns the lower case equivalent for the specified code point if it is
@@ -3649,14 +3649,14 @@ public final class Character implements Serializable, Comparable<Character> {
      * @return if {@code c} is a lower case character then its upper case
      *         counterpart, otherwise just {@code c}.
      */
-//    public static char toUpperCase(char c) {
-//        // Optimized case for ASCII
-//        if ('a' <= c && c <= 'z') {
-//            return (char) (c - ('a' - 'A'));
-//        }
-//        if (c < 181) {
-//            return c;
-//        }
+    public static char toUpperCase(char c) {
+        // Optimized case for ASCII
+        if ('a' <= c && c <= 'z') {
+            return (char) (c - ('a' - 'A'));
+        }
+        if (c < 181) {
+            return c;
+        }
 //        if (c<1000) {
 //            return (char)uppercaseValuesCache[(int)c-181];
 //        }
@@ -3677,8 +3677,8 @@ public final class Character implements Serializable, Comparable<Character> {
 //                return (char) (c + mapping);
 //            }
 //        }
-//        return c;
-//    }
+        return c;
+    }
     
     /**
      * Returns the upper case equivalent for the specified code point if the
