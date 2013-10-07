@@ -32,6 +32,7 @@ local primitivetypes =
 }
 
 local function New(climp)
+	--dbg("construct ", climp.ThisClass())
 	local hash = globalhash
 	globalhash = globalhash + 1
 
@@ -132,6 +133,27 @@ local function NewStringArray(data)
 	return object
 end
 
+-- Returns the java.lang.Class object which represents a particular climp.
+
+local GetClassForClimp
+GetClassForClimp = function(climp)
+	if not classobjects[climp] then
+		local c = ClimpLoader.Default:LoadClimp("java/lang/Class")
+		local o = New(c)
+		local n = climp:ThisClass()
+		o.forClimp = climp
+		o.isArray = not not string_find(n, "^%[")
+		o.isPrimitive = not not string_find(n, "^[VZBCSIJDF]$")
+		local _, _, ct = string_find(n, "^%[(.*)$")
+		if ct then
+			local ctc = climp:ClimpLoader():LoadClimp(ct)
+			o.componentType = GetClassForClimp(ctc)
+		end
+		classobjects[climp] = o
+	end
+	return classobjects[climp]
+end
+
 return {
 	RegisterNativeMethod = function(class, name, func)
 		native_methods[class.." "..name] = func
@@ -186,18 +208,7 @@ return {
 		return false
 	end,
 
-	GetClassForClimp = function(climp)
-		if not classobjects[climp] then
-			local c = ClimpLoader.Default:LoadClimp("java/lang/Class")
-			local o = New(c)
-			local n = climp:ThisClass()
-			o.forClimp = climp
-			o.isArray = not not string_find(n, "^%[")
-			o.isPrimitive = not not string_find(n, "^[VZBCSIJDF]$")
-			classobjects[climp] = o
-		end
-		return classobjects[climp]
-	end,
+	GetClassForClimp = GetClassForClimp,
 
 	NewString = function(utf8)
 		if not stringobjects[utf8] then

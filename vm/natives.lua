@@ -27,15 +27,7 @@ Runtime.RegisterNativeMethod("java/lang/Object", "getClass()Ljava/lang/Class;",
 
 Runtime.RegisterNativeMethod("java/lang/Class", "getComponentType()Ljava/lang/Class;",
 	function(self)
-		local climp = self.forClimp
-		local n = climp:ThisClass()
-		local _, _, a, b = string_find(n, "^(.)(.*)$")
-		if (a == "[") then
-			local c = climp:ClimpLoader():LoadClimp(b)
-			return Runtime.GetClassForClimp(c)
-		else
-			return nil
-		end
+		return self.componentType
 	end
 )
 
