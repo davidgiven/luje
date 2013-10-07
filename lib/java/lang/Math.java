@@ -485,24 +485,7 @@ public final class Math {
      *            the second argument.
      * @return the larger of {@code d1} and {@code d2}.
      */
-    public static double max(double d1, double d2) {
-        if (d1 > d2) {
-            return d1;
-        }
-        if (d1 < d2) {
-            return d2;
-        }
-        /* if either arg is NaN, return NaN */
-        if (d1 != d2) {
-            return Double.NaN;
-        }
-        /* max(+0.0,-0.0) == +0.0 */
-        /* 0 == Double.doubleToRawLongBits(0.0d) */
-        if (Double.doubleToRawLongBits(d1) != 0) {
-            return d2;
-        }
-        return 0.0d;
-    }
+    public static native double max(double d1, double d2);
 
     /**
      * Returns the most positive (closest to positive infinity) of the two
@@ -522,24 +505,7 @@ public final class Math {
      *            the second argument.
      * @return the larger of {@code f1} and {@code f2}.
      */
-    public static float max(float f1, float f2) {
-        if (f1 > f2) {
-            return f1;
-        }
-        if (f1 < f2) {
-            return f2;
-        }
-        /* if either arg is NaN, return NaN */
-        if (f1 != f2) {
-            return Float.NaN;
-        }
-        /* max(+0.0,-0.0) == +0.0 */
-        /* 0 == Float.floatToRawIntBits(0.0f) */
-        if (Float.floatToRawIntBits(f1) != 0) {
-            return f2;
-        }
-        return 0.0f;
-    }
+    public static native float max(float f1, float f2);
 
     /**
      * Returns the most positive (closest to positive infinity) of the two
@@ -551,9 +517,7 @@ public final class Math {
      *            the second argument.
      * @return the larger of {@code i1} and {@code i2}.
      */
-    public static int max(int i1, int i2) {
-        return i1 > i2 ? i1 : i2;
-    }
+    public static native int max(int i1, int i2);
 
     /**
      * Returns the most positive (closest to positive infinity) of the two
@@ -565,9 +529,7 @@ public final class Math {
      *            the second argument.
      * @return the larger of {@code l1} and {@code l2}.
      */
-    public static long max(long l1, long l2) {
-        return l1 > l2 ? l1 : l2;
-    }
+    public static native long max(long l1, long l2);
 
     /**
      * Returns the most negative (closest to negative infinity) of the two
@@ -587,24 +549,7 @@ public final class Math {
      *            the second argument.
      * @return the smaller of {@code d1} and {@code d2}.
      */
-    public static double min(double d1, double d2) {
-        if (d1 > d2) {
-            return d2;
-        }
-        if (d1 < d2) {
-            return d1;
-        }
-        /* if either arg is NaN, return NaN */
-        if (d1 != d2) {
-            return Double.NaN;
-        }
-        /* min(+0.0,-0.0) == -0.0 */
-        /* 0x8000000000000000L == Double.doubleToRawLongBits(-0.0d) */
-        if (Double.doubleToRawLongBits(d1) == 0x8000000000000000L) {
-            return -0.0d;
-        }
-        return d2;
-    }
+    public static native double min(double d1, double d2);
 
     /**
      * Returns the most negative (closest to negative infinity) of the two
@@ -624,24 +569,7 @@ public final class Math {
      *            the second argument.
      * @return the smaller of {@code f1} and {@code f2}.
      */
-    public static float min(float f1, float f2) {
-        if (f1 > f2) {
-            return f2;
-        }
-        if (f1 < f2) {
-            return f1;
-        }
-        /* if either arg is NaN, return NaN */
-        if (f1 != f2) {
-            return Float.NaN;
-        }
-        /* min(+0.0,-0.0) == -0.0 */
-        /* 0x80000000 == Float.floatToRawIntBits(-0.0f) */
-        if (Float.floatToRawIntBits(f1) == 0x80000000) {
-            return -0.0f;
-        }
-        return f2;
-    }
+    public static native float min(float f1, float f2);
 
     /**
      * Returns the most negative (closest to negative infinity) of the two
@@ -653,9 +581,7 @@ public final class Math {
      *            the second argument.
      * @return the smaller of {@code i1} and {@code i2}.
      */
-    public static int min(int i1, int i2) {
-        return i1 < i2 ? i1 : i2;
-    }
+    public static native int min(int i1, int i2);
 
     /**
      * Returns the most negative (closest to negative infinity) of the two
@@ -667,9 +593,7 @@ public final class Math {
      *            the second argument.
      * @return the smaller of {@code l1} and {@code l2}.
      */
-    public static long min(long l1, long l2) {
-        return l1 < l2 ? l1 : l2;
-    }
+    public static native long min(long l1, long l2);
 
     /**
      * Returns the closest double approximation of the result of raising {@code

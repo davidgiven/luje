@@ -58,6 +58,15 @@ Runtime.RegisterNativeMethod("java/lang/Math", "cos(D)D", math.cos)
 Runtime.RegisterNativeMethod("java/lang/Math", "tan(D)D", math.tan)
 Runtime.RegisterNativeMethod("java/lang/Math", "log(D)D", math.log)
 
+Runtime.RegisterNativeMethod("java/lang/Math", "max(II)I", math.max)
+Runtime.RegisterNativeMethod("java/lang/Math", "max(JJ)J", math.max)
+Runtime.RegisterNativeMethod("java/lang/Math", "max(FF)F", math.max)
+Runtime.RegisterNativeMethod("java/lang/Math", "max(DD)D", math.max)
+Runtime.RegisterNativeMethod("java/lang/Math", "min(II)I", math.min)
+Runtime.RegisterNativeMethod("java/lang/Math", "min(JJ)J", math.min)
+Runtime.RegisterNativeMethod("java/lang/Math", "min(FF)F", math.min)
+Runtime.RegisterNativeMethod("java/lang/Math", "min(DD)D", math.min)
+
 ffi.cdef([[
 	struct timeval
 	{
