@@ -77,6 +77,8 @@ Runtime.RegisterNativeMethod("java/lang/System", "currentTimeMillis()J",
 	end
 )
 
+Runtime.RegisterNativeMethod("java/lang/System", "gc()V", collectgarbage)
+
 Runtime.RegisterNativeMethod("org/apache/harmony/luni/util/NumberConverter", "convert(D)Ljava/lang/String;",
 	function(d)
 		return Runtime.NewString(tostring(tonumber(d)))

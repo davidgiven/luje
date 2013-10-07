@@ -63,4 +63,5 @@ public class System
 
 	public static native long currentTimeMillis();
 	
+	public static native void gc();
 }
