@@ -32,7 +32,6 @@ local primitivetypes =
 }
 
 local function New(climp)
-	--dbg("construct ", climp.ThisClass())
 	local hash = globalhash
 	globalhash = globalhash + 1
 

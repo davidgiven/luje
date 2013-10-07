@@ -11,11 +11,25 @@ local string_byte = string.byte
 local string_find = string.find
 local table_concat = table.concat
 local Cast = require("Cast")
+local ffi = require("ffi")
 local BtoSB = Cast.BtoSB
 local BBtoW = Cast.BBtoW
 local WtoSW = Cast.WtoSW
 local WWtoI = Cast.WWtoI
 local ItoSI = Cast.ItoSI
+
+-- Table describing boxed values.
+
+local boxinfo = {
+	["Z"] = ffi.typeof("struct { int32_t value; }"),
+	["B"] = ffi.typeof("struct { int8_t value; }"),
+	["C"] = ffi.typeof("struct { uint16_t value; }"),
+	["S"] = ffi.typeof("struct { int16_t value; }"),
+	["I"] = ffi.typeof("struct { int32_t value; }"),
+	["J"] = ffi.typeof("struct { int64_t value; }"),
+	["F"] = ffi.typeof("struct { float value; }"),
+	["D"] = ffi.typeof("struct { double value; }")
+}
 
 -- Retrieves a constant value from a climp.
 
@@ -806,7 +820,14 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
-			emit("stack", sp, " = ", c, ".Fields['", f.Name, "']")
+			local v
+			if boxinfo[f.Descriptor] then
+				v = ".value"
+			else
+				v = ""
+			end
+
+			emit("stack", sp, " = ", c, ".Fields['", f.Name, "']", v)
 			sp = sp + f.Size
 		end,
 
@@ -815,8 +836,15 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
+			local v
+			if boxinfo[f.Descriptor] then
+				v = ".value"
+			else
+				v = ""
+			end
+
 			sp = sp - f.Size
-			emit(c, ".Fields['", f.Name, "'] = stack", sp)
+			emit(c, ".Fields['", f.Name, "']", v, " = stack", sp)
 		end,
 
 		[0xb4] = function() -- getfield
@@ -824,9 +852,16 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
+			local v
+			if boxinfo[f.Descriptor] then
+				v = ".value"
+			else
+				v = ""
+			end
+
 			sp = sp - 1
 			nullcheck("stack"..sp)
-			emit("stack", sp, " = stack", sp, ".Fields['", f.Name, "']")
+			emit("stack", sp, " = stack", sp, ".Fields['", f.Name, "']", v)
 			sp = sp + f.Size
 		end,
 
@@ -835,9 +870,16 @@ local function compile_method(climp, analysis, mimpl)
 			local f = analysis.RefConstants[i]
 			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
 
+			local v
+			if boxinfo[f.Descriptor] then
+				v = ".value"
+			else
+				v = ""
+			end
+
 			sp = sp - f.Size - 1
 			nullcheck("stack"..sp)
-			emit("stack", sp, ".Fields['", f.Name, "'] = stack", sp+1)
+			emit("stack", sp, ".Fields['", f.Name, "']", v, " = stack", sp+1)
 		end,
 
 		[0xb6] = function() -- invokevirtual
@@ -1130,7 +1172,7 @@ end
 
 return function(climploader)
 	local analysis
-	local instancevars = {}
+	local instancevartypes = {}
 	local instancemethodcache = {}
 	local superclimp
 	local constants = {}
@@ -1145,15 +1187,13 @@ return function(climploader)
 			-- Initialise static fields.
 
 			for _, f in pairs(analysis.Fields) do
-				local value = 0
-				if string_find(f.Descriptor, "^[[L]") then
-					value = nil
-				end
-
-				if string_find(f.AccessFlags, " static ") then
-					self.Fields[f.Name] = value
-				else
-					instancevars[f.Name] = value
+				local bi = boxinfo[f.Descriptor]
+				if bi then
+					if string_find(f.AccessFlags, " static ") then
+						self.Fields[f.Name] = bi({0})
+					else
+						instancevartypes[f.Name] = bi
+					end
 				end
 			end
 
@@ -1173,8 +1213,8 @@ return function(climploader)
 		end,
 
 		InitInstance = function(self, o)
-			for k, v in pairs(instancevars) do
-				o.Fields[k] = v
+			for k, v in pairs(instancevartypes) do
+				o.Fields[k] = v({0})
 			end
 
 			if superclimp then
