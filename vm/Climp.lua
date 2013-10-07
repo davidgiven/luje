@@ -21,14 +21,14 @@ local ItoSI = Cast.ItoSI
 -- Table describing boxed values.
 
 local boxinfo = {
-	["Z"] = ffi.typeof("struct { int32_t value; }"),
-	["B"] = ffi.typeof("struct { int8_t value; }"),
-	["C"] = ffi.typeof("struct { uint16_t value; }"),
-	["S"] = ffi.typeof("struct { int16_t value; }"),
-	["I"] = ffi.typeof("struct { int32_t value; }"),
-	["J"] = ffi.typeof("struct { int64_t value; }"),
-	["F"] = ffi.typeof("struct { float value; }"),
-	["D"] = ffi.typeof("struct { double value; }")
+--	["Z"] = ffi.typeof("struct { int32_t value; }"),
+--	["B"] = ffi.typeof("struct { int8_t value; }"),
+--	["C"] = ffi.typeof("struct { uint16_t value; }"),
+--	["S"] = ffi.typeof("struct { int16_t value; }"),
+--	["I"] = ffi.typeof("struct { int32_t value; }"),
+--	["J"] = ffi.typeof("struct { int64_t value; }"),
+--	["F"] = ffi.typeof("struct { float value; }"),
+--	["D"] = ffi.typeof("struct { double value; }")
 }
 
 -- Retrieves a constant value from a climp.
@@ -1172,6 +1172,10 @@ local function compile_static_method(climp, analysis, mimpl)
 	end
 end
 
+local function returnszero()
+	return 0
+end
+
 return function(climploader)
 	local analysis
 	local instancevartypes = {}
@@ -1189,12 +1193,25 @@ return function(climploader)
 			-- Initialise static fields.
 
 			for _, f in pairs(analysis.Fields) do
-				local bi = boxinfo[f.Descriptor]
-				if bi then
-					if string_find(f.AccessFlags, " static ") then
+				if string_find(f.AccessFlags, " static ") then
+					local bi = boxinfo[f.Descriptor]
+					if bi then
 						self.Fields[f.Name] = bi({0})
-					else
+					elseif not string_find(f.Descriptor, "^[[L]") then
+						self.Fields[f.Name] = 0
+					end
+				end
+			end
+
+			-- Remember the types of instance fields.
+
+			for _, f in pairs(analysis.Fields) do
+				if not string_find(f.AccessFlags, " static ") then
+					local bi = boxinfo[f.Descriptor]
+					if bi then
 						instancevartypes[f.Name] = bi
+					elseif not string_find(f.Descriptor, "^[[L]") then
+						instancevartypes[f.Name] = returnszero
 					end
 				end
 			end
