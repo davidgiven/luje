@@ -107,7 +107,7 @@ public final class Fannkuch
 
 		for (int task=0; task<NTASKS; task++)
 		{
-			System.out.println("task="+task);
+			//System.out.println("task="+task);
 			runTask( task );
 		}
     }
@@ -119,7 +119,7 @@ public final class Fannkuch
 
     public static void main( String[] args )
     {        
-        n = 11;
+        n = 10;
         if ( n < 0 || n > 12 ) {         // 13! won't fit into int
             printResult( n, -1, -1 );
             return;
@@ -141,7 +141,10 @@ public final class Fannkuch
         maxFlips = new int[NTASKS];
         chkSums  = new int[NTASKS];
 
+        long startTime = System.currentTimeMillis();
 		new Fannkuch().run();
+        long endTime = System.currentTimeMillis();
+        System.out.println("Elapsed time: "+(endTime-startTime)+" ms");
         
         int res = 0;
         for ( int v : maxFlips ) {
