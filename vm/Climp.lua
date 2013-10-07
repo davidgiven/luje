@@ -308,13 +308,13 @@ local function compile_method(climp, analysis, mimpl)
 
 		[0x10] = function() -- bipush
 			local i = s1()
-			emit("stack", sp, " = tonumber(ffi.cast('int32_t', ", i, "))")
+			emit("stack", sp, " = ", i)
 			sp = sp + 1
 		end,
 
 		[0x11] = function() -- sipush
 			local i = s2()
-			emit("stack", sp, " = tonumber(ffi.cast('int32_t', ", i, "))")
+			emit("stack", sp, " = ", i)
 			sp = sp + 1
 		end,
 
@@ -516,12 +516,12 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x60] = function() -- iadd
-			emit("stack", sp-2, " = stack", sp-2, " + stack", sp-1)
+			emit("stack", sp-2, " = tonumber(cast('int32_t', cast('int32_t', stack", sp-2, ") + cast('int32_t', stack", sp-1, ")))")
 			sp = sp - 1
 		end,
 
 		[0x61] = function() -- ladd
-			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " + stack", sp-2, ")")
+			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " + stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
@@ -536,12 +536,12 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x64] = function() -- isub
-			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, " - stack", sp-1, "))")
+			emit("stack", sp-2, " = tonumber(cast('int32_t', stack", sp-2, " - stack", sp-1, "))")
 			sp = sp - 1
 		end,
 
 		[0x65] = function() -- lsub
-			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " - stack", sp-2, ")")
+			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " - stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
@@ -551,12 +551,12 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x68] = function() -- imul
-			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', ffi.cast('int32_t', stack", sp-2, ") * ffi.cast('int32_t', stack", sp-1, ")))")
+			emit("stack", sp-2, " = tonumber(cast('int32_t', cast('int32_t', stack", sp-2, ") * cast('int32_t', stack", sp-1, ")))")
 			sp = sp - 1
 		end,
 
 		[0x69] = function() -- lmul
-			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " * stack", sp-2, ")")
+			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " * stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
@@ -566,7 +566,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x6c] = function() -- idiv
-			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, " / stack", sp-1, "))")
+			emit("stack", sp-2, " = tonumber(cast('int32_t', stack", sp-2, " / stack", sp-1, "))")
 			sp = sp - 1
 		end,
 
@@ -576,7 +576,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x6d] = function() -- ldiv
-			emit("stack", sp-4, " = ffi.cast('int64_t', stack", sp-4, " / stack", sp-2, ")")
+			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " / stack", sp-2, ")")
 			sp = sp - 2
 		end,
 
@@ -596,22 +596,22 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x70] = function() -- irem
-			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, " % stack", sp-1, "))")
+			emit("stack", sp-2, " = tonumber(cast('int32_t', stack", sp-2, " % stack", sp-1, "))")
 			sp = sp - 1
 		end,
 
 		[0x71] = function() -- lrem
 			sp = sp - 4
-			emit("stack", sp, " = ffi.cast('int64_t', stack", sp, " % stack", sp+2, ")")
+			emit("stack", sp, " = cast('int64_t', stack", sp, " % stack", sp+2, ")")
 			sp = sp + 2
 		end,
 
 		[0x74] = function() -- ineg
-			emit("stack", sp-1, " = tonumber(ffi.cast('int32_t', -stack", sp-1, "))")
+			emit("stack", sp-1, " = tonumber(cast('int32_t', -stack", sp-1, "))")
 		end,
 
 		[0x75] = function() -- lneg
-			emit("stack", sp-2, " = ffi.cast('int64_t', -stack", sp-2, ")")
+			emit("stack", sp-2, " = cast('int64_t', -stack", sp-2, ")")
 		end,
 
 		[0x78] = function() -- ishl
@@ -637,11 +637,11 @@ local function compile_method(climp, analysis, mimpl)
 		[0x84] = function() -- iinc
 			local var = u1()
 			local i = s1()
-			emit("local", var, " = tonumber(ffi.cast('int32_t', local", var, " + ", i, "))")
+			emit("local", var, " = tonumber(cast('int32_t', local", var, " + ", i, "))")
 		end,
 
 		[0x85] = function() -- i2l
-			emit("stack", sp-1, " = ffi.cast('int64_t', stack", sp-1, ")")
+			emit("stack", sp-1, " = cast('int64_t', stack", sp-1, ")")
 			sp = sp + 1
 		end,
 
@@ -655,7 +655,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x88] = function() -- l2i
-			emit("stack", sp-2, " = tonumber(ffi.cast('int32_t', stack", sp-2, "))")
+			emit("stack", sp-2, " = tonumber(cast('int32_t', stack", sp-2, "))")
 			sp = sp - 1
 		end,
 
@@ -664,24 +664,24 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x8b] = function() -- f2i
-			emit("stack", sp-1, " = tonumber(ffi.cast('int32_t', stack", sp-1, "))")
+			emit("stack", sp-1, " = tonumber(cast('int32_t', stack", sp-1, "))")
 		end,
 
 		[0x8d] = function() -- f2d
-			emit("stack", sp-1, " = ffi.cast('double', stack", sp-1, ")")
+			emit("stack", sp-1, " = cast('double', stack", sp-1, ")")
 			sp = sp + 1
 		end,
 
 		[0x91] = function() -- i2b
-			emit("stack", sp-1, " = tonumber(ffi.cast('uint8_t', stack", sp-1, "))")
+			emit("stack", sp-1, " = tonumber(cast('int8_t', stack", sp-1, "))")
 		end,
 
 		[0x92] = function() -- i2c
-			emit("stack", sp-1, " = tonumber(ffi.cast('uint16_t', stack", sp-1, "))")
+			emit("stack", sp-1, " = tonumber(cast('uint16_t', stack", sp-1, "))")
 		end,
 
 		[0x93] = function() -- i2s
-			emit("stack", sp-1, " = tonumber(ffi.cast('int16_t', stack", sp-1, "))")
+			emit("stack", sp-1, " = tonumber(cast('int16_t', stack", sp-1, "))")
 		end,
 
 		[0x94] = function() -- lcmp
@@ -1113,6 +1113,8 @@ local function compile_method(climp, analysis, mimpl)
 	local wrapper = {
 		"local ffi = require('ffi') ",
 		"local runtime = require('Runtime') ",
+		"local tonumber = tonumber ",
+		"local cast = ffi.cast ",
 		"return function("
 	}
 
