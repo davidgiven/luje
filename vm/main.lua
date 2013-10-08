@@ -28,6 +28,8 @@ do
 						"Options:\n"..
 						"  -h  --help             produce this message\n"..
 						"  -n  --no-null-checks   don't check for null pointers\n"..
+						"  -d  --dump             dump out generated Lua source\n"..
+						"  -t  --trace            trace compilations and class loads\n"..
 						"\n"..
 						"Here be dragons!\n")
 		os.exit(0)
@@ -38,6 +40,16 @@ do
 		return 0
 	end
 
+	local function do_dump(arg)
+		Options.DumpCompilations = true
+		return 0
+	end
+
+	local function do_trace(arg)
+		Options.TraceCompilations = true
+		return 0
+	end
+
 	Utils.ParseCommandLine({...},
 		{
 			["h"] = do_help,
@@ -45,6 +57,12 @@ do
 
 			["n"] = do_no_null_checks,
 			["no-null-checks"] = do_no_null_checks,
+
+			["d"] = do_dump,
+			["dump"] = do_dump,
+
+			["t"] = do_trace,
+			["trace"] = do_trace,
 
 			[" unrecognised"] = function(arg)
 				Utils.UserError("option not recognised (try --help)")

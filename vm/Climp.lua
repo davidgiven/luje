@@ -82,7 +82,9 @@ end
 -- a callable function.
 
 local function compile_method(climp, analysis, mimpl)
-	--dbg("compiling: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
+	if Options.TraceCompilations then
+		dbg("compiling: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor)
+	end
 
 	local bytecode = mimpl.Code.Bytecode
 	local pos = 0
@@ -1143,7 +1145,10 @@ local function compile_method(climp, analysis, mimpl)
 
 	-- Compile it.
 	
-	--dbg("source for: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor, "\n", table_concat(wrapper), "\n")
+	if Options.DumpCompilations then
+		dbg("source for: ", analysis.ThisClass, "::", mimpl.Name, mimpl.Descriptor, "\n", table_concat(wrapper), "\n")
+	end
+
 	local chunk, e = load(table_concat(wrapper),
 		analysis.ThisClass.."::"..mimpl.Name..mimpl.Descriptor)
 	Utils.Check(e, "compilation failed")

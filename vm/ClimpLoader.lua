@@ -5,6 +5,7 @@
 -- project root for the full text.
 
 local Utils = require("Utils")
+local Options = require("Options")
 local dbg = Utils.Debug
 local classanalyser = require("classanalyser")
 local string_find = string.find
@@ -25,7 +26,10 @@ local function LoadClimp(self, name)
 		Climp = require("Climp")
 	end
 
-	--dbg("loading: ", name)
+	if Options.TraceCompilations then
+		dbg("loading: ", name)
+	end
+
 	local t
 	if string_find(name, "^[[VZBCSIJDF]") then
 		t = {
