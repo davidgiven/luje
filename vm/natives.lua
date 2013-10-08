@@ -7,6 +7,7 @@
 local Utils = require("Utils")
 local dbg = Utils.Debug
 local Runtime = require("Runtime")
+local ClimpLoader = require("ClimpLoader")
 local ffi = require("ffi")
 local string_find = string.find
 local string_byte = string.byte
@@ -18,6 +19,13 @@ Runtime.RegisterNativeMethod("java/lang/Object", "hashCode()I",
 )
 
 --- Class management --------------------------------------------------------
+
+Runtime.RegisterNativeMethod("java/lang/Void", "getVoidClass()Ljava/lang/Class;",
+	function()
+		local climp = ClimpLoader.Default:LoadClimp("V")
+		return Runtime.GetClassForClimp(climp)
+	end
+)
 
 Runtime.RegisterNativeMethod("java/lang/Object", "getClass()Ljava/lang/Class;",
 	function(self)
