@@ -254,6 +254,7 @@ local function analyseclass(classdata)
 			AccessFlags = parse_access_flags(f.access_flags),
 			Name = name,
 			Descriptor = descriptor,
+			Class = ClassConstants[impl.this_class],
 		}
 		resolveattributes(class, f.attributes, method)
 		Fields[name] = field

@@ -9,9 +9,11 @@ local dbg = Utils.Debug
 local Runtime = require("Runtime")
 local string_byte = string.byte
 local string_find = string.find
+local string_gsub = string.gsub
 local table_concat = table.concat
 local Cast = require("Cast")
 local ffi = require("ffi")
+local ffi_new = ffi.new
 local BtoSB = Cast.BtoSB
 local BBtoW = Cast.BBtoW
 local WtoSW = Cast.WtoSW
@@ -21,30 +23,58 @@ local ItoSI = Cast.ItoSI
 -- Table describing boxed values.
 
 local boxinfo = {
---	["Z"] = ffi.typeof("struct { int32_t value; }"),
---	["B"] = ffi.typeof("struct { int8_t value; }"),
---	["C"] = ffi.typeof("struct { uint16_t value; }"),
---	["S"] = ffi.typeof("struct { int16_t value; }"),
---	["I"] = ffi.typeof("struct { int32_t value; }"),
---	["J"] = ffi.typeof("struct { int64_t value; }"),
---	["F"] = ffi.typeof("struct { float value; }"),
---	["D"] = ffi.typeof("struct { double value; }")
+	["Z"] = "int32_t",
+	["B"] = "int8_t",
+	["C"] = "uint16_t",
+	["S"] = "int16_t ",
+	["I"] = "int32_t ",
+	["J"] = "int64_t ",
+	["F"] = "float",
+	["D"] = "double"
 }
 
--- Retrieves a constant value from a climp.
+-- Resolves a field reference in a climp.
 
-local constantparser = {
-	["CONSTANT_class"] = function(c, analysis, climploader)
-		local classname = analysis.Utf8Constants[c.name_index]
-		local climp = climploader:LoadClimp(classname)
-		return Runtime.GetClassForClimp(climp)
-	end,
+local function search_for_field_in_climp_class_hierarchy(climp, name)
+	if climp.Analysis.Fields[name] then
+		return climp
+	end
+	local superclimp = climp:SuperClimp()
+	if superclimp then
+		return search_for_field_in_climp_class_hierarchy(superclimp, name)
+	end
+	return nil
+end
 
-	["CONSTANT_String"] = function(c, analysis, climploader)
-		local utf8 = analysis.Utf8Constants[c.string_index]
-		return Runtime.NewString(utf8)
-	end,
-}
+local function resolve_field_reference(climp, field)
+	if not field.ResolvedClass then
+		field.ResolvedClass = search_for_field_in_climp_class_hierarchy(climp, field.Name)
+	end
+	return field.ResolvedClass
+end
+
+-- Massages a field into a C name.
+
+local function field_name(climp, field)
+	local s = (resolve_field_reference(climp, field).ThisClass()).."/"..field.Name..field.Descriptor
+	s = string_gsub(s, "_", "_U_")
+	s = string_gsub(s, "/", "_S_")
+	s = string_gsub(s, "%$", "_D_")
+	return s
+end
+
+-- Returns an lvalue representing an object (or class) field.
+
+local function field_lvalue(c, f)
+	local bi = boxinfo[f.Descriptor]
+	if bi then
+		-- This is a boxed value.
+		return "Fields['"..field_name(c, f).."']"
+	else
+		-- Non-boxed value (object reference).
+		return "OFields['"..field_name(c, f).."']"
+	end
+end
 
 -- This function does the bytecode compilation. It takes the bytecode and
 -- converts it into a Lua script, then compiles it and returns the method as
@@ -818,68 +848,40 @@ local function compile_method(climp, analysis, mimpl)
 		[0xb2] = function() -- getstatic
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
+			local c = climp:ClimpLoader():LoadClimp(f.Class)
 
-			local v
-			if boxinfo[f.Descriptor] then
-				v = ".value"
-			else
-				v = ""
-			end
-
-			emit("stack", sp, " = ", c, ".Fields['", f.Name, "']", v)
+			emit("stack", sp, " = ", constant(c), ".", field_lvalue(c, f))
 			sp = sp + f.Size
 		end,
 
 		[0xb3] = function() -- putstatic
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
-
-			local v
-			if boxinfo[f.Descriptor] then
-				v = ".value"
-			else
-				v = ""
-			end
+			local c = climp:ClimpLoader():LoadClimp(f.Class)
 
 			sp = sp - f.Size
-			emit(c, ".Fields['", f.Name, "']", v, " = stack", sp)
+			emit(constant(c), ".", field_lvalue(c, f), " = stack", sp)
 		end,
 
 		[0xb4] = function() -- getfield
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
-
-			local v
-			if boxinfo[f.Descriptor] then
-				v = ".value"
-			else
-				v = ""
-			end
+			local c = climp:ClimpLoader():LoadClimp(f.Class)
 
 			sp = sp - 1
 			nullcheck("stack"..sp)
-			emit("stack", sp, " = stack", sp, ".Fields['", f.Name, "']", v)
+			emit("stack", sp, " = stack", sp, ".", field_lvalue(c, f))
 			sp = sp + f.Size
 		end,
 
 		[0xb5] = function() -- putfield
 			local i = u2()
 			local f = analysis.RefConstants[i]
-			local c = constant(climp:ClimpLoader():LoadClimp(f.Class))
-
-			local v
-			if boxinfo[f.Descriptor] then
-				v = ".value"
-			else
-				v = ""
-			end
+			local c = climp:ClimpLoader():LoadClimp(f.Class)
 
 			sp = sp - f.Size - 1
 			nullcheck("stack"..sp)
-			emit("stack", sp, ".Fields['", f.Name, "']", v, " = stack", sp+1)
+			emit("stack", sp, ".", field_lvalue(c, f), " = stack", sp+1)
 		end,
 
 		[0xb6] = function() -- invokevirtual
@@ -1176,50 +1178,78 @@ local function returnszero()
 	return 0
 end
 
+local constantparser = {
+	["CONSTANT_class"] = function(c, analysis, climploader)
+		local classname = analysis.Utf8Constants[c.name_index]
+		local climp = climploader:LoadClimp(classname)
+		return Runtime.GetClassForClimp(climp)
+	end,
+
+	["CONSTANT_String"] = function(c, analysis, climploader)
+		local utf8 = analysis.Utf8Constants[c.string_index]
+		return Runtime.NewString(utf8)
+	end,
+}
+
 return function(climploader)
 	local analysis
-	local instancevartypes = {}
+	local instancevartype
 	local instancemethodcache = {}
 	local superclimp
 	local constants = {}
 	local staticmethods = {}
-	local staticfields = {}
 
 	local c
 	c = {
 		Init = function(self, a)
 			analysis = a
+			self.Analysis = a
 
 			-- Initialise static fields.
 
+			local s = {}
+			s[#s+1] = "struct {"
 			for _, f in pairs(analysis.Fields) do
 				if string_find(f.AccessFlags, " static ") then
 					local bi = boxinfo[f.Descriptor]
 					if bi then
-						self.Fields[f.Name] = bi({0})
-					elseif not string_find(f.Descriptor, "^[[L]") then
-						self.Fields[f.Name] = 0
+						s[#s+1] = bi..' '..field_name(self, f)..';'
 					end
 				end
 			end
-
-			-- Remember the types of instance fields.
-
-			for _, f in pairs(analysis.Fields) do
-				if not string_find(f.AccessFlags, " static ") then
-					local bi = boxinfo[f.Descriptor]
-					if bi then
-						instancevartypes[f.Name] = bi
-					elseif not string_find(f.Descriptor, "^[[L]") then
-						instancevartypes[f.Name] = returnszero
-					end
-				end
-			end
+			s[#s+1] = "}"
+			s = table_concat(s, "\n")
+			self.Fields = ffi.new(s)
+			self.OFields = {}
 
 			-- Load the superclass.
 
 			if analysis.SuperClass then
 				superclimp = climploader:LoadClimp(analysis.SuperClass)
+			end
+
+			-- Remember the types of instance fields.
+
+			s = {}
+			s[#s+1] = "struct {"
+			self:AddInstanceFieldsToStruct(s)
+			s[#s+1] = "}"
+			s = table_concat(s, "\n")
+			instancevartype = ffi.typeof(s)
+		end,
+
+		AddInstanceFieldsToStruct = function(self, s)
+			for _, f in pairs(analysis.Fields) do
+				if not string_find(f.AccessFlags, " static ") then
+					local bi = boxinfo[f.Descriptor]
+					if bi then
+						s[#s+1] = bi..' '..field_name(self, f)..';'
+					end
+				end
+			end
+
+			if superclimp then
+				superclimp:AddInstanceFieldsToStruct(s)
 			end
 		end,
 
@@ -1232,13 +1262,8 @@ return function(climploader)
 		end,
 
 		InitInstance = function(self, o)
-			for k, v in pairs(instancevartypes) do
-				o.Fields[k] = v({0})
-			end
-
-			if superclimp then
-				superclimp:InitInstance(o)
-			end
+			o.Fields = ffi_new(instancevartype, {})
+			o.OFields = {}
 		end,
 
 		ClimpLoader = function(self)
@@ -1285,7 +1310,6 @@ return function(climploader)
 		end,
 
 		Methods = staticmethods,
-		Fields = staticfields
 	}
 
 	setmetatable(staticmethods,

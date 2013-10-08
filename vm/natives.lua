@@ -117,6 +117,12 @@ Runtime.RegisterNativeMethod("java/lang/Throwable", "fillInStackTrace()Ljava/lan
 
 --- System bindings ---------------------------------------------------------
 
+Runtime.RegisterNativeMethod("java/lang/System", "log(Ljava/lang/String;)V",
+	function(s)
+		dbg(Runtime.FromString(s))
+	end
+)
+
 Runtime.RegisterNativeMethod("java/io/FileDescriptor", "getStdInDescriptor()J",
 	function() return 0 end)
 Runtime.RegisterNativeMethod("java/io/FileDescriptor", "getStdOutDescriptor()J",

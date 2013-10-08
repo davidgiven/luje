@@ -64,4 +64,6 @@ public class System
 	public static native long currentTimeMillis();
 	
 	public static native void gc();
+
+	public static native void log(String s);
 }

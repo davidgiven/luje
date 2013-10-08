@@ -46,6 +46,7 @@ local function LoadClimp(self, name)
 	-- Call the static constructor for the class.
 	
 	local m = c.Methods["<clinit>()V"]
+	--dbg("class init: ", name, " = ", m)
 	if m then 
 		m()
 	end
