@@ -175,9 +175,4 @@ luje is distributable under the terms of the <a href="copying.wiki">Simplified
 BSD License</a>. It also contains code derived from the Apache Harmony project,
 which is available under the Apache 2.0 license.
 
-<h2 class='comments-title'>Comments on this page</h2>
-<table class='comments' border='0'><tr>
-<td id='commentator-viewer'></td>
-<td id='commentator-poster'></td>
-</tr></table>
 
