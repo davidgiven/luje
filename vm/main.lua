@@ -12,6 +12,7 @@ package.path = ServerDir .. "?.lua;" .. ServerDir .. "?/init.lua;" .. package.pa
 local Utils = require("Utils")
 local ClimpLoader = require("ClimpLoader")
 local Runtime = require("Runtime")
+local Options = require("Options")
 local string_gsub = string.gsub
 require("natives")
 
@@ -25,16 +26,25 @@ do
 		                "The classpath is currently hard coded to be ./bin.\n"..
 						"\n"..
 						"Options:\n"..
-						"  -h  --help   produce this message\n"..
+						"  -h  --help             produce this message\n"..
+						"  -n  --no-null-checks   don't check for null pointers\n"..
 						"\n"..
 						"Here be dragons!\n")
 		os.exit(0)
+	end
+
+	local function do_no_null_checks(arg)
+		Options.CheckNullPointers = false
+		return 0
 	end
 
 	Utils.ParseCommandLine({...},
 		{
 			["h"] = do_help,
 			["help"] = do_help,
+
+			["n"] = do_no_null_checks,
+			["no-null-checks"] = do_no_null_checks,
 
 			[" unrecognised"] = function(arg)
 				Utils.UserError("option not recognised (try --help)")

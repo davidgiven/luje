@@ -7,6 +7,7 @@
 local Utils = require("Utils")
 local dbg = Utils.Debug
 local Runtime = require("Runtime")
+local Options = require("Options")
 local string_byte = string.byte
 local string_find = string.find
 local string_gsub = string.gsub
@@ -190,7 +191,9 @@ local function compile_method(climp, analysis, mimpl)
 	-- Emit a check for null for the specified variable.
 	
 	local function nullcheck(v)
-		emitnonl("if (", v, " == nil) then goto nullpointer end ")
+		if Options.CheckNullPointers then
+			emitnonl("if (", v, " == nil) then goto nullpointer end ")
+		end
 	end
 
 	-- Perform a method call.
@@ -645,22 +648,22 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x78] = function() -- ishl
-			emit("stack", sp-2, " = bit.lshift(stack", sp-2, ", stack", sp-1, ")")
+			emit("stack", sp-2, " = bit_lshift(stack", sp-2, ", stack", sp-1, ")")
 			sp = sp - 1
 		end,
 
 		[0x7a] = function() -- ishr
-			emit("stack", sp-2, " = bit.arshift(stack", sp-2, ", stack", sp-1, ")")
+			emit("stack", sp-2, " = bit_arshift(stack", sp-2, ", stack", sp-1, ")")
 			sp = sp - 1
 		end,
 
 		[0x7e] = function() -- iand
-			emit("stack", sp-2, " = bit.band(stack", sp-2, ", stack", sp-1, ")")
+			emit("stack", sp-2, " = bit_band(stack", sp-2, ", stack", sp-1, ")")
 			sp = sp - 1
 		end,
 
 		[0x80] = function() -- ior
-			emit("stack", sp-2, " = bit.bor(stack", sp-2, ", stack", sp-1, ")")
+			emit("stack", sp-2, " = bit_bor(stack", sp-2, ", stack", sp-1, ")")
 			sp = sp - 1
 		end,
 
@@ -1064,9 +1067,11 @@ local function compile_method(climp, analysis, mimpl)
 
 	-- Add the null pointer handler.
 	
-	emit("::nullpointer::")
-	emit("e = runtime.NullPointerException()")
-	emit("goto exceptionhandler")
+	if Options.CheckNullPointers then
+		emit("::nullpointer::")
+		emit("e = runtime.NullPointerException()")
+		emit("goto exceptionhandler")
+	end
 
 	while true do
 		-- Fetch the next entrypoint.
@@ -1117,6 +1122,7 @@ local function compile_method(climp, analysis, mimpl)
 		"local runtime = require('Runtime') ",
 		"local tonumber = tonumber ",
 		"local cast = ffi.cast ",
+		"local bit_lshift, bit_arshift, bit_band, bit_bor = bit.lshift, bit.arshift, bit.band, bit.bor ",
 		"return function("
 	}
 
