@@ -1,8 +1,8 @@
-                                 LUJE v0.1
+                                 LUJE v0.2
                                  =========
                                   
                          Copyright (C) 2013 David Given
-                                 2013-10-06
+                                 2013-10-08
             
             
                                  
@@ -11,9 +11,8 @@ INTRODUCTION
 
 Luje is a toy Java virtual machine written in pure Lua. It works by translating
 Java bytecode into Lua on-the-fly, and then using Mike Pall's LuaJIT to run the
-result. On amd64 it seems to run most programs at about 50-75% of the speed of
-Hotspot, and some carefully chosen non-representative microbenchmarks are
-actually faster than Hotspot. That's not bad given the whole thing is under
+result. It will run some carefully chosen non-representative microbenchmarks
+faster than the OpenJDK will. That's not bad given the whole thing is under
 3000 lines of code.
 
 It comes with a rather massacred copy of the Apache Harmony standard library
@@ -62,6 +61,9 @@ and run ant), and then invoke it with (for example):
     ./luje com.cowlark.luje.LocalBench
 
 If all goes according to plan the program will run.
+
+There are some potentially useful command line options, useful for debugging;
+try --help.
 
 
 

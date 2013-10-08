@@ -2,20 +2,20 @@
 
 <h3>What is it?</h3>
 
-luje is an experimental (read: toy) Java virtual machine written in pure
-Lua. It works by compiling Java bytecode into Lua scripts on-the-fly and
-then running them using Mike Pall's <a href="http://luajit.org/">LuaJIT
-2</a>. The result is an extremely fast but incredibly lightweight Java
-virtual machine which can outperform Sun's Hotspot in some situations.
+luje is an experimental (read: toy) Java virtual machine written in pure Lua.
+It works by compiling Java bytecode into Lua scripts on-the-fly and then
+running them using Mike Pall's <a href="http://luajit.org/">LuaJIT 2</a>. The
+result is an extremely fast but incredibly lightweight Java virtual machine
+which can outperform the server JIT used in OpenJDK in some situations.
 
 Right now it excels at anything which involves tight loops and float or doubles
 in local variables --- see the LocalBench benchmark. It'll comfortably beat
-Hotspot (on amd64, or Zero on ARM) with those. However, it does very badly with
-longs, as LuaJIT currently boxes those. Fields and methods of objects are
-stored in hash tables, so accessing fields in an inner loop will tend to cause
-luje to slow down. In any non-trivial benchmark it usually manages about 50% to
-75% of Hotspot.  Still, that's not bad given that the whole thing is less than
-3000 lines of code.
+Hotspot (on amd64, or Zero on ARM) with those. However, it's not good at longs
+(although much better than it used to be).  stored in hash tables, so accessing
+fields in an inner loop will tend to cause luje to slow down. It hasn't really
+had any testing with non-trivial benchmarks yet; if anyone has any
+recommendations, please email me.  Still, given that the whole thing is less
+than 3000 lines of code the performance so far is damn good.
 
 Consider these two carefully chosen unrepresentative microbenchmarks.
 LocalBench (<code>lib/com/cowlark/luje/LocalBench.java</code> in the
@@ -24,99 +24,17 @@ distribution) performs some simple computations on local variables. FieldBench
 computations, but the values are stored in fields and the computation is done
 via a method call.
 
-<table>
-	<tr>
-		<th>IcedTea6 Hotspot on amd64</th>
-		<th>IcedTea7 Zero on ARMv7</th>
-	</tr>
-	<tr>
-		<td>
-			<table>
-				<tr>
-					<th></th>
-					<th>LocalBench<br/>(luje)</th>
-					<th>LocalBench<br/>(Hotspot)</th>
-					<th>FieldBench<br/>(luje)</th>
-					<th>FieldBench<br/>(Hotspot)</th>
-				</tr>
-				<tr>
-					<th align='right'>integer</th>
-					<td>64027</td>
-					<td>49240</td>
-					<td>38630</td>
-					<td>49845</td>
-				</tr>
-				<tr>
-					<th align='right'>long</th>
-					<td>11709</td>
-					<td>48475</td>
-					<td>1699</td>
-					<td>48335</td>
-				</tr>
-				<tr>
-					<th align='right'>float</th>
-					<td>99930</td>
-					<td>87451</td>
-					<td>24642</td>
-					<td>84872</td>
-				</tr>
-				<tr>
-					<th align='right'>double</th>
-					<td>99980</td>
-					<td>74692</td>
-					<td>21654</td>
-					<td>77441</td>
-				</tr>
-			</table>
-		</td>
-		<td>
-			<table>
-				<tr>
-					<th></th>
-					<th>LocalBench<br/>(luje)</th>
-					<th>LocalBench<br/>(Zero)</th>
-					<th>FieldBench<br/>(luje)</th>
-					<th>FieldBench<br/>(Zero)</th>
-				</tr>
-				<tr>
-					<th align='right'>integer</th>
-					<td>8335</td>
-					<td>16651</td>
-					<td>7512</td>
-					<td>6621</td>
-				</tr>
-				<tr>
-					<th align='right'>long</th>
-					<td>1372</td>
-					<td>4567</td>
-					<td>196</td>
-					<td>2739</td>
-				</tr>
-				<tr>
-					<th align='right'>float</th>
-					<td>6221</td>
-					<td>2999</td>
-					<td>2749</td>
-					<td>2330</td>
-				</tr>
-				<tr>
-					<th align='right'>double</th>
-					<td>6231</td>
-					<td>2381</td>
-					<td>2504</td>
-					<td>1958</td>
-				</tr>
-			</table>
-		</td>
-	</tr>
-</table>
+<img src="chart1.png"/>
+<img src="chart2.png"/>
 
-(Larger is better.)
+amd64: OpenJDK Runtime Environment (IcedTea6 1.12.5) (6b27-1.12.5-1); OpenJDK 64-Bit Server VM (build 20.0-b12, mixed mode)
 
-There's plenty more optimisation that can be done --- avoiding hash table
-accesses for field and method calls would be my favourite --- but it's already
-looking extremely promising. The memory footprint is a tiny fraction the size
-of IcedTea, too.
+ARMv7: OpenJDK Runtime Environment (IcedTea 2.3.9) (7u21-2.3.9-5); OpenJDK Zero VM (build 22.0-b10, mixed mode)
+
+There's plenty more optimisation that can be done --- laying out data
+structures in a way that's more friendly to the JIT would be good --- but it's
+already looking extremely promising. The memory footprint is a tiny fraction
+the size of IcedTea, too.
 
 Currently it's in an extremely unfinished and fragile state. Not all bytecodes
 are implemented (including the rather important <code>wide</code>), and the
@@ -125,7 +43,11 @@ out. There are many bugs.  It's certainly not useful for real work yet, and may
 not be at ever. See the <a href='../../../rptview?rn=2'>bug tracker</a> for
 details.
 
+You might want to read the <a href="faq.wiki">Frequently Asked Questions</a>.
+
 <h3>What's new?</h3>
+
+<b>2013-10-08</b>: Version 0.2 released. Much better long performance. Bugfixes. 
 
 <b>2013-10-06</b>: Version 0.1 released.
 
@@ -134,11 +56,11 @@ details.
 <h3>Where can I get it?</h3>
 
 <blockquote class='link'>
-<a href='../../../tarball/luje-0.1.tar.gz?uuid=release-0.1'>
+<a href='../../../tarball/luje-0.2.tar.gz?uuid=release-0.2'>
   <img class='link-img' height='22' width='20' alt='[BIN]' src='//cowlark.com/binary.png'>
 </a>
-<a href='../../../tarball/luje-0.1.tar.gz?uuid=release-0.1'>luje-0.1.tar.gz</a>
-<p>Version 0.1 is available for download.</p>
+<a href='../../../tarball/luje-0.2.tar.gz?uuid=release-0.2'>luje-0.2.tar.gz</a>
+<p>Version 0.2 is available for download.</p>
 </blockquote>
 
 It's currently unreleased, but if you're desperate you can download

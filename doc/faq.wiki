@@ -1,0 +1,123 @@
+<title>frequently asked questions</title>
+
+<dl>
+<dt>How does it work?</dt>
+<dd>
+
+Bytecode is read in and translated crudely into really terrible Lua source.
+Each Java method ends up as a single Lua function. Here's an example, minus the
+function prologue and epilogue:
+
+<verbatim>
+::pc_0:: --[[ sp=0 line=15 --]] stack0 = local0
+::pc_1:: --[[ sp=1 line=16 --]] _, e = constant1.Methods['<init>()V'](stack0) if e then epc=3 goto exceptionhandler end
+::pc_4:: --[[ sp=0 line=17 --]] stack0 = local0
+::pc_5:: --[[ sp=1 line=18 --]] stack1 = 1
+::pc_6:: --[[ sp=3 line=19 --]] if (stack0 == nil) then goto nullpointer end stack0.Fields['com_S_cowlark_S_luje_S_FieldBench_D_DoubleBenchmark_S_resultD'] = stack1
+::pc_9:: --[[ sp=0 line=20 --]] stack0 = local0
+::pc_10:: --[[ sp=1 line=21 --]] stack1 = 1
+::pc_11:: --[[ sp=3 line=22 --]] if (stack0 == nil) then goto nullpointer end stack0.Fields['com_S_cowlark_S_luje_S_FieldBench_D_DoubleBenchmark_S_countD'] = stack1
+::pc_14:: --[[ sp=0 line=23 --]] do return end
+</verbatim>
+
+(Use the <code>--dump</code> option to see more.)
+
+You can see that there's nothing clever there at all --- the whole thing took
+about three weeks of part-time work to write, from first checkin to first
+release. At execution time it relies heavily on LuaJIT managing to extract the
+original programmer's intent from the above code and producing optimal traces,
+which it does pretty well.
+
+There are a number of optimisations intended to make life easier for the JIT;
+Java object instance data that's a primitive type (int, long, float, double)
+etc are stored in a LuaJIT FFI structure. It's a lot cheaper to access this
+structure than it is a Lua table field, and also gives the JIT more information
+about what type the data is.
+
+Methods are compiled lazily, as they are called --- the <code>Methods</code>
+field on an object has a Lua metatable attached that catches uninitialised
+members and attempts to load them. This minimised startup time but does mean
+that there's a fair amount of JIT warmup time. Likewise, classes are loaded
+on-the-fly.
+</dd>
+
+<dt>What's the performance like in real life?</dt>
+<dd>
+Unknown; I haven't tried it on any real life programs yet.
+
+It's really good on microbenchmarks, but of course they're not representative.
+I've tried it on one of the CLBG benchmarks but the results are so obviously
+wrong that I don't consider that to be representative either. If anyone can
+suggest any reasonable representative tests I can try, please get in touch.
+</dd>
+
+<dt>Can I run programs out of JAR files?</dt>
+<dd>
+No, not yet. The class loader mechanism isn't done yet. You have to unzip them
+into the bin directory before luje can see the class files.
+</dd>
+
+<dt>Can this be used as an off-line compiler?</dt>
+<dd>
+No, although the technology, such as it is, could be fairly easily adapted to
+do so. It's just easier not to.
+</dd>
+
+<dt>Is there a Lua native interface?</dt>
+<dd>
+Yes, and it's really easy to use --- you can register a handler for a
+<code>native</code> method via <code>Runtime.RegisterNativeFunction</code>.
+It's fast and efficient. See <code>vm/natives.lua</code> for examples.
+</dd>
+
+<dt>Does it support JNI?</dt>
+<dd>
+Interesting question; the answer is... potentially. Using LuaJIT's FFI, it
+should be possible to provide a JNI interface that's binary compatible with
+existing JVMs. That should allow use of existing DLLs.
+
+Unfortunately this is likely to be much less use than it sounds, because of the
+next question.
+</dd>
+
+<dt>Could this be turned into a real JVM?</dt>
+<dd>
+Probably not. Unfortunately.
+
+The big problem is threads. Threads are ubiquitous in the Java ecosystem, and
+are used everywhere. Unfortunately, Lua doesn't use them at all, and Lua VMs
+(including LuaJIT) are all strictly single-threaded. The Lua concurrency
+paradigm is to use multiple VMs, one for each thread, and then use
+message-passing between them.
+
+It <i>is</i> possible to implement fake threads, using Lua's coroutines to
+provide multiple threads of execution and the cooperatively scheduling between
+them; but that doesn't get you concurrency. It also won't work with pthreads,
+which is why JNI is unlikely to be useful (see the previous question).
+
+It might be possible to achieve some degree of compatibility by using
+coroutine-based fake threads on the Java side and then a big global lock to
+serialise accesses from JNI, but... your mileage will definitely vary.
+</dd>
+
+<dt>Could it be made faster?</dt>
+<dd>
+Yes, probably.
+
+Right now the bytecode translator is a really simple brute-force thing. It does
+a single pass through the bytecode, following branches to find reachable code,
+generating Lua source as it does so.
+
+One thing that's probably worth doing is to add proper dataflow analysis to it.
+This would do a much better job of registerising the Java stack, and producing
+much more Lua-like code. Right now the JIT has trouble finding traceable paths
+through the code, because it's so weird; so the less weird the code gets, the
+more chance it has of doing a good job.
+</dd>
+
+<dt>Can I see the machine code being produces?</dt>
+<dd>
+Yes. Edit the <code>luje</code> shell script and add the <code>-jdump</code>
+option to the invocation of luajit at the bottom of the file.
+</dd>
+</dl>
