@@ -551,7 +551,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x61] = function() -- ladd
-			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " + stack", sp-2, ")")
+			emit("stack", sp-4, " = stack", sp-4, " + stack", sp-2)
 			sp = sp - 2
 		end,
 
@@ -571,7 +571,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x65] = function() -- lsub
-			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " - stack", sp-2, ")")
+			emit("stack", sp-4, " = stack", sp-4, " - stack", sp-2)
 			sp = sp - 2
 		end,
 
@@ -586,7 +586,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x69] = function() -- lmul
-			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " * stack", sp-2, ")")
+			emit("stack", sp-4, " = stack", sp-4, " * stack", sp-2)
 			sp = sp - 2
 		end,
 
@@ -606,7 +606,7 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x6d] = function() -- ldiv
-			emit("stack", sp-4, " = cast('int64_t', stack", sp-4, " / stack", sp-2, ")")
+			emit("stack", sp-4, " = stack", sp-4, " / stack", sp-2)
 			sp = sp - 2
 		end,
 
@@ -632,7 +632,7 @@ local function compile_method(climp, analysis, mimpl)
 
 		[0x71] = function() -- lrem
 			sp = sp - 4
-			emit("stack", sp, " = cast('int64_t', stack", sp, " % stack", sp+2, ")")
+			emit("stack", sp, " = stack", sp, " % stack", sp+2)
 			sp = sp + 2
 		end,
 
@@ -1107,7 +1107,7 @@ local function compile_method(climp, analysis, mimpl)
 
 	-- Emit function epilogue.
 	
-	emit("return end")
+	emit("end")
 
 	-- Wrap the whole thing in the constructor function used to pass in the
 	-- constant pool.
