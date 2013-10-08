@@ -24,8 +24,8 @@ distribution) performs some simple computations on local variables. FieldBench
 computations, but the values are stored in fields and the computation is done
 via a method call.
 
-<img src="chart1.png"/>
-<img src="chart2.png"/>
+<p><img src="chart1.png"/>
+<img src="chart2.png"/></p>
 
 amd64: OpenJDK Runtime Environment (IcedTea6 1.12.5) (6b27-1.12.5-1); OpenJDK 64-Bit Server VM (build 20.0-b12, mixed mode)
 
