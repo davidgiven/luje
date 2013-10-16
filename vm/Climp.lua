@@ -93,6 +93,7 @@ local function compile_method(climp, analysis, mimpl)
 	local stacksize = {} -- size of stack at each bytecode
 	local entrypoints = {} -- any additional entrypoints waiting compilation
 	local seenopcodes = {} -- opcodes which we've already compiled
+	local wide = false -- was the last opcode 'wide'?
 	local output = {}
 
 	local function u1()
@@ -126,6 +127,8 @@ local function compile_method(climp, analysis, mimpl)
 		local i = u4()
 		return ItoSI(i)
 	end
+
+	local sw, uw -- assigned to either u1 or u2 depending on setting of wide
 
 	-- Ensures that the current stack pointer matches any recorded stack for
 	-- this address.
@@ -381,31 +384,31 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x15] = function() -- iload
-			local i = u1()
+			local i = uw()
 			emit("stack", sp, " = local", i)
 			sp = sp + 1
 		end,
 
 		[0x16] = function() -- lload
-			local i = u1()
+			local i = uw()
 			emit("stack", sp, " = local", i)
 			sp = sp + 2
 		end,
 
 		[0x17] = function() -- fload
-			local i = u1()
+			local i = uw()
 			emit("stack", sp, " = local", i)
 			sp = sp + 1
 		end,
 
 		[0x18] = function() -- dload
-			local i = u1()
+			local i = uw()
 			emit("stack", sp, " = local", i)
 			sp = sp + 2
 		end,
 
 		[0x19] = function() -- aload
-			local i = u1()
+			local i = uw()
 			emit("stack", sp, " = local", i)
 			sp = sp + 1
 		end,
@@ -441,31 +444,31 @@ local function compile_method(climp, analysis, mimpl)
 		[0x35] = arrayload_op(1), -- saload
 
 		[0x36] = function() -- istore
-			local var = u1()
+			local var = uw()
 			sp = sp - 1
 			emit("local", var, " = stack", sp)
 		end,
 
 		[0x37] = function() -- lstore
-			local var = u1()
+			local var = uw()
 			sp = sp - 2
 			emit("local", var, " = stack", sp)
 		end,
 
 		[0x38] = function() -- fstore
-			local var = u1()
+			local var = uw()
 			sp = sp - 1
 			emit("local", var, " = stack", sp)
 		end,
 
 		[0x39] = function() -- dstore
-			local var = u1()
+			local var = uw()
 			sp = sp - 2
 			emit("local", var, " = stack", sp)
 		end,
 
 		[0x3a] = function() -- astore
-			local var = u1()
+			local var = uw()
 			sp = sp - 1
 			emit("local", var, " = stack", sp)
 		end,
@@ -670,8 +673,8 @@ local function compile_method(climp, analysis, mimpl)
 		end,
 
 		[0x84] = function() -- iinc
-			local var = u1()
-			local i = s1()
+			local var = uw()
+			local i = sw()
 			emit("local", var, " = tonumber(cast('int32_t', local", var, " + ", i, "))")
 		end,
 
@@ -1030,6 +1033,11 @@ local function compile_method(climp, analysis, mimpl)
 			sp = sp - 1
 		end,
 
+		[0xc4] = function() -- wide
+			emit("-- wide")
+			wide = true
+		end,
+
 		[0xc6] = function() -- ifnull
 			local delta = s2() - 3
 			sp = sp - 1
@@ -1100,6 +1108,16 @@ local function compile_method(climp, analysis, mimpl)
 				seenopcodes[pos] = true
 				checkstack(pos)
 				output[#output+1] = "::pc_"..pos..":: "
+
+				-- Ensure that 'wide' is honoured
+				if wide then
+					uw = u2
+					sw = s2
+					wide = false
+				else
+					uw = u1
+					sw = s1
+				end
 
 				local opcode = u1()
 				local opcodec = opcodemap[opcode]
