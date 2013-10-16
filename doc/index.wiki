@@ -47,6 +47,9 @@ You might want to read the <a href="faq.wiki">Frequently Asked Questions</a>.
 
 <h3>What's new?</h3>
 
+<b>2013-10-16</b>: Version 0.2.1 released. Bugfix for 0.2 --- there was a
+missing file.
+
 <b>2013-10-08</b>: Version 0.2 released. Much better long performance. Bugfixes. 
 
 <b>2013-10-06</b>: Version 0.1 released.
@@ -56,11 +59,11 @@ You might want to read the <a href="faq.wiki">Frequently Asked Questions</a>.
 <h3>Where can I get it?</h3>
 
 <blockquote class='link'>
-<a href='../../../tarball/luje-0.2.tar.gz?uuid=release-0.2'>
+<a href='../../../tarball/luje-0.2.1.tar.gz?uuid=release-0.2.1'>
   <img class='link-img' height='22' width='20' alt='[BIN]' src='//cowlark.com/binary.png'>
 </a>
-<a href='../../../tarball/luje-0.2.tar.gz?uuid=release-0.2'>luje-0.2.tar.gz</a>
-<p>Version 0.2 is available for download.</p>
+<a href='../../../tarball/luje-0.2.1.tar.gz?uuid=release-0.2.1'>luje-0.2.1.tar.gz</a>
+<p>Version 0.2.1 is available for download.</p>
 </blockquote>
 
 It's currently unreleased, but if you're desperate you can download
